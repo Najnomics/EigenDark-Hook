@@ -12,12 +12,14 @@ import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {EigenDarkHook} from "../src/EigenDarkHook.sol";
 import {BaseTest} from "./utils/BaseTest.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {IEigenDarkVault} from "../src/interfaces/IEigenDarkVault.sol";
 
 contract EigenDarkHookTest is BaseTest {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
     EigenDarkHook hook;
+    MockVault vault;
     PoolKey poolKey;
     PoolId poolId;
     Currency currency0;
@@ -34,11 +36,14 @@ contract EigenDarkHookTest is BaseTest {
         EigenDarkHook.Config memory cfg =
             EigenDarkHook.Config({attestor: attestor, enclaveMeasurement: MEASUREMENT, attestationWindow: 1 hours});
 
+        vault = new MockVault();
+
         // Hook addresses require the permission bits encoded into the address.
         address flags = address(uint160(Hooks.BEFORE_SWAP_FLAG) ^ (0x4444 << 144));
-        bytes memory constructorArgs = abi.encode(poolManager, cfg, address(this));
+        bytes memory constructorArgs = abi.encode(poolManager, cfg, address(this), IEigenDarkVault(address(vault)));
         deployCodeTo("EigenDarkHook.sol:EigenDarkHook", constructorArgs, flags);
         hook = EigenDarkHook(flags);
+        vault.setHook(address(hook));
 
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(hook)));
         poolId = poolKey.toId();
@@ -55,6 +60,10 @@ contract EigenDarkHookTest is BaseTest {
 
         hook.registerSettlement(settlement, signature);
         assertTrue(hook.settledOrders(settlement.orderId));
+        assertEq(PoolId.unwrap(vault.lastPool()), PoolId.unwrap(poolId));
+        assertEq(vault.lastTrader(), settlement.trader);
+        assertEq(vault.lastDelta0(), settlement.delta0);
+        assertEq(vault.lastDelta1(), settlement.delta1);
     }
 
     function testRegisterSettlementRevertsOnReplay() public {
@@ -115,5 +124,45 @@ contract EigenDarkHookTest is BaseTest {
         return abi.encodePacked(r, s, v);
     }
 
+}
+
+contract MockVault is IEigenDarkVault {
+    PoolId private _lastPool;
+    address private _lastTrader;
+    int128 private _lastDelta0;
+    int128 private _lastDelta1;
+    address public hook;
+
+    modifier onlyHook() {
+        require(msg.sender == hook, "MockVault: not hook");
+        _;
+    }
+
+    function setHook(address hook_) external {
+        hook = hook_;
+    }
+
+    function applySettlement(PoolId poolId, address trader, int128 delta0, int128 delta1) external override onlyHook {
+        _lastPool = poolId;
+        _lastTrader = trader;
+        _lastDelta0 = delta0;
+        _lastDelta1 = delta1;
+    }
+
+    function lastPool() external view returns (PoolId) {
+        return _lastPool;
+    }
+
+    function lastTrader() external view returns (address) {
+        return _lastTrader;
+    }
+
+    function lastDelta0() external view returns (int128) {
+        return _lastDelta0;
+    }
+
+    function lastDelta1() external view returns (int128) {
+        return _lastDelta1;
+    }
 }
 

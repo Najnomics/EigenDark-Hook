@@ -7,6 +7,8 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
 
+import {IEigenDarkVault} from "./interfaces/IEigenDarkVault.sol";
+
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {IPoolManager, SwapParams} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
@@ -54,6 +56,7 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
     );
 
     Config public config;
+    IEigenDarkVault public immutable vault;
     mapping(bytes32 => bool) public settledOrders;
 
     event ConfigUpdated(address indexed attestor, bytes32 indexed enclaveMeasurement, uint32 attestationWindow);
@@ -61,11 +64,13 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
         bytes32 indexed orderId, PoolId indexed poolId, address indexed trader, int128 delta0, int128 delta1
     );
 
-    constructor(IPoolManager _poolManager, Config memory cfg, address initialOwner)
+    constructor(IPoolManager _poolManager, Config memory cfg, address initialOwner, IEigenDarkVault _vault)
         BaseHook(_poolManager)
         Ownable(initialOwner)
         EIP712("EigenDarkSettlement", "0.1")
     {
+        require(address(_vault) != address(0), "EigenDarkHook: VAULT_REQUIRED");
+        vault = _vault;
         _setConfig(cfg);
     }
 
@@ -121,6 +126,7 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
         if (signer != localConfig.attestor) revert InvalidAttestor();
 
         settledOrders[settlement.orderId] = true;
+        vault.applySettlement(settlement.poolId, settlement.trader, settlement.delta0, settlement.delta1);
         emit SettlementRecorded(settlement.orderId, settlement.poolId, settlement.trader, settlement.delta0, settlement.delta1);
     }
 
