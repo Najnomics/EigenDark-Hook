@@ -19,6 +19,8 @@ Environment variables (`.env`):
 PORT=4000
 EIGEN_TEE_URL=https://example-enclave
 API_KEY=dev
+EIGEN_COMPUTE_URL=http://localhost:8080
+COMPUTE_WEBHOOK_KEY=dev-hook
 ```
 
 ## Scripts
@@ -26,4 +28,12 @@ API_KEY=dev
 - `pnpm dev` – run with nodemon + ts-node in watch mode
 - `pnpm build` – emit JS to `dist/`
 - `pnpm start` – run compiled server
+
+## Flow
+
+1. Clients `POST /orders` with an encrypted payload + metadata.
+2. Gateway validates input and forwards it to the EigenCompute app (`EIGEN_COMPUTE_URL`).
+3. The compute service performs private execution and calls back `POST /settlements`
+   with a signed settlement + attestation. The gateway currently logs the payload;
+   the next step is to verify the signature and push to the on-chain hook.
 
