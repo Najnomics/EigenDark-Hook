@@ -1,0 +1,19 @@
+{
+  "name": "onchain",
+  "version": "1.0.0",
+  "description": "EigenDark on-chain smart contracts (Foundry)",
+  "main": "index.js",
+  "scripts": {
+    "forge:build": "forge build",
+    "forge:test": "forge test",
+    "lint": "prettier --check \"src/**/*.sol\" \"test/**/*.sol\"",
+    "format": "prettier --write \"src/**/*.sol\" \"test/**/*.sol\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.17.1",
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}
