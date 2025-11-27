@@ -1,13 +1,18 @@
 import express from "express";
-import dotenv from "dotenv";
 import { z } from "zod";
 import axios from "axios";
 import { config } from "./config.js";
 import { verifySettlement } from "./settlementVerifier.js";
 import { submitToHook } from "./hookSubmitter.js";
-import { SettlementPayload, VerifiedSettlement } from "./types.js";
-
-dotenv.config();
+import { SettlementPayload } from "./types.js";
+import {
+  getSettlement,
+  initSettlementStore,
+  markFailed,
+  markSubmitted,
+  serializeSettlement,
+  upsertSettlement,
+} from "./settlementStore.js";
 
 const app = express();
 app.use(express.json());
@@ -29,7 +34,7 @@ const orderSchema = z.object({
 const settlementSchema = z.object({
   orderId: z.string().min(1),
   settlement: z.object({
-    orderId: z.string().min(1),
+    orderId: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
     poolId: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
     trader: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
     delta0: z.string(),
@@ -43,8 +48,6 @@ const settlementSchema = z.object({
     measurement: z.string(),
   }),
 });
-
-const verifiedSettlements = new Map<string, VerifiedSettlement>();
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
@@ -75,12 +78,25 @@ app.post("/settlements", async (req, res) => {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
+  const payload = parsed.data as SettlementPayload;
+
   try {
-    const payload = parsed.data as SettlementPayload;
     const verified = await verifySettlement(payload);
-    verifiedSettlements.set(verified.clientOrderId, verified);
-    console.log("Verified settlement", verified);
-    await submitToHook(payload, verified);
+    const record = upsertSettlement(payload, verified);
+    console.log("Verified settlement", serializeSettlement(record));
+
+    try {
+      const txHash = await submitToHook(payload, verified);
+      if (txHash) {
+        markSubmitted(record.clientOrderId, txHash);
+      }
+    } catch (error) {
+      const message = (error as Error).message || "hook submission failed";
+      console.error("Failed to submit settlement", message);
+      markFailed(record.clientOrderId, message);
+      return res.status(502).json({ error: "hook_submission_failed" });
+    }
+
     res.status(204).send();
   } catch (error) {
     console.error("Invalid settlement attestation", error);
@@ -89,14 +105,22 @@ app.post("/settlements", async (req, res) => {
 });
 
 app.get("/settlements/:orderId", (req, res) => {
-  const item = verifiedSettlements.get(req.params.orderId);
+  const item = getSettlement(req.params.orderId);
   if (!item) {
     return res.status(404).json({ error: "settlement not found" });
   }
-  res.json(item);
+  res.json(serializeSettlement(item));
 });
 
-app.listen(config.port, () => {
-  console.log(`EigenDark Gateway listening on :${config.port}`);
+async function bootstrap() {
+  await initSettlementStore();
+  app.listen(config.port, () => {
+    console.log(`EigenDark Gateway listening on :${config.port}`);
+  });
+}
+
+bootstrap().catch((error) => {
+  console.error("Failed to start gateway", error);
+  process.exit(1);
 });
 

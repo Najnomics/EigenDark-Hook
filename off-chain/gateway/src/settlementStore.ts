@@ -13,7 +13,7 @@ export type StoredSettlement = {
   error?: string;
 };
 
-type SerializableSettlement = Omit<StoredSettlement, "verified"> & {
+export type SerializableSettlement = Omit<StoredSettlement, "verified"> & {
   verified: Omit<VerifiedSettlement, "delta0" | "delta1"> & {
     delta0: string;
     delta1: string;
@@ -87,7 +87,7 @@ function schedulePersist() {
 }
 
 async function persistStore() {
-  const serializable: SerializableSettlement[] = Array.from(store.values()).map(serialize);
+  const serializable: SerializableSettlement[] = Array.from(store.values()).map(serializeSettlement);
   const payload = JSON.stringify(serializable, null, 2);
   try {
     await fs.writeFile(storePath, payload, "utf8");
@@ -96,7 +96,7 @@ async function persistStore() {
   }
 }
 
-function serialize(entry: StoredSettlement): SerializableSettlement {
+export function serializeSettlement(entry: StoredSettlement): SerializableSettlement {
   return {
     ...entry,
     verified: {
