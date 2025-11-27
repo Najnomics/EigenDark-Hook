@@ -48,6 +48,9 @@ pnpm dev                   # runs ts-node with nodemon on http://localhost:8080
 | `MAX_PENDING_ORDERS` | Back-pressure limit before returning `503` |
 | `GATEWAY_TIMEOUT_MS` | HTTP timeout when notifying the public gateway |
 | `LOG_LEVEL` | `pino` log level (`info`, `debug`, etc.) |
+| `PYTH_ENDPOINT` | Hermes endpoint URL (e.g. `https://hermes.pyth.network`) |
+| `PYTH_TWAP_WINDOW` | TWAP window (seconds) used when computing deviation caps |
+| `PYTH_PRICE_IDS` | JSON map of `tokenIn-tokenOut` (lowercase) to Pyth price IDs |
 
 The service exposes:
 
@@ -77,12 +80,20 @@ comply with EigenCompute networking rules.
 
 ## Deploying with EigenX
 
-1. `eigenx app create eigendark-compute node`
-2. Copy this source tree into the generated project (or point `Dockerfile` to the
-   container produced above)
-3. `eigenx app deploy --env .env`
-4. Note the returned `app_id`, `public_key`, and `measurement` – these must be
-   mirrored into the on-chain `EigenDarkHook` config and the gateway `.env`
+1. Authenticate and subscribe (once): `eigenx auth login`, `eigenx billing subscribe`.
+2. Populate `.env` with production secrets (attestor key, hook/vault addresses, Pyth configuration).
+3. Use the helper script to build the Docker image and invoke the EigenX deploy command:
+
+```bash
+cd off-chain/compute/app
+chmod +x scripts/deploy-eigenx.sh          # first run only
+ENV_FILE=.env IMAGE_TAG=eigendark/compute:$(git rev-parse --short HEAD) scripts/deploy-eigenx.sh
+```
+
+4. Track the roll-out with `eigenx app info` and stream logs via `eigenx app logs`.
+5. Mirror the app’s measurement hash and enclave wallet address into `EigenDarkHook` + gateway configs.
+
+> The script wraps `pnpm build`, `docker buildx`, and `eigenx app deploy`. Set `IMAGE_TAG` or `ENV_FILE` to point at alternative registries/files as needed.
 
 ## Next steps
 
