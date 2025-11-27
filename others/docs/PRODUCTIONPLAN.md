@@ -5,6 +5,28 @@
 - Use EigenCloud/EigenCompute services (Intel TDX TEEs, EigenX CLI workflow, EigenLabs KMS) as documented under `CONTEXT/eigencloud-docs`.
 - Maintain user trust by enforcing privacy guarantees (orders/reserves hidden, attestations verified) and publishing auditable settlement data only.
 
+### 1.1 Architecture Charter
+- **Core principles**: confidential Uniswap v4 hooks, EigenCompute attestations, trust-minimized settlements, institutional controls (KYB, governance pause, auditable logs).
+- **Component boundaries**:
+  - `EigenDarkHook`: verifies EigenCompute attestations, mediates settlement, enforces pause/attestor rotation.
+  - `EigenDarkVault`: safekeeps LP liquidity, executes deltas from hook, supports governance withdrawals.
+  - `EigenCompute enclave`: decrypts orders/reserves, fetches Pyth TWAP, matches orders privately, signs EIP-712 settlements.
+  - `Gateway + Client tooling`: receives encrypted orders, forwards to enclave, verifies settlements, publishes to hook, exposes SDK/CLI for traders and LPs.
+- **Privacy contract**: no FHE; privacy derives from enclave isolation, encrypted payloads, and limited on-chain disclosures (only deltas + attestation).
+- **Data flow alignment**: matches README “Technical Architecture” section—trader → gateway → EigenCompute → hook/vault—with EigenLayer/EigenCloud trust anchors.
+
+### 1.2 Success Metrics (from README §Performance Metrics)
+| Metric | Target | Notes |
+| --- | --- | --- |
+| Order-to-Settlement Time | < 30s | Monitor end-to-end latency; alert if >60s for 3 consecutive orders. |
+| Gas Cost per Trade | < 300k gas | Maintain CREATE2 deploy + settlement calldata efficiency. |
+| Privacy Level | ≥ 98% | Ensure only signed deltas + hashed order IDs leave the enclave. |
+| TEE Attestation Success | 100% | No settlement accepted without valid EigenCompute measurement/signature. |
+| TWAP Deviation | < 0.1% | Enclave must enforce oracle staleness + deviation guards. |
+| Supported Trade Size | $100K – $100M | Vault + hook must sustain at least $50M test cases before launch. |
+| TEE Uptime | ≥ 99.97% | Multiple EigenCompute instances + health routing. |
+| Settlement Throughput | ≥ 200 orders/min burst | Gateway retry + enqueue design sized accordingly. |
+
 ## 2. Core Assumptions
 - Privacy derives from EigenCompute TEEs, not FHE (README makes no FHE promise).
 - Governance parameters (fees, limits, timelocks, guardians) follow README tables; changes require DAO consent.
