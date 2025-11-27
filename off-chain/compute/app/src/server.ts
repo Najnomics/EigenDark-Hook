@@ -6,26 +6,58 @@ import { config } from "./config.js";
 import { SettlementQueue } from "./settlementQueue.js";
 import { signSettlement } from "./attestation.js";
 import { EncryptedOrder, QueueItem, SettlementInstruction } from "./types.js";
+import { logger } from "./logger.js";
+import { attachRequestId } from "./requestContext.js";
+import { requireGatewayAuth } from "./auth.js";
 
 const app = express();
-const queue = new SettlementQueue();
+const queue = new SettlementQueue(config.maxPendingOrders);
 
-app.use(express.json());
-
-const orderSchema = z.object({
-  trader: z.string().min(1),
-  tokenIn: z.string().min(1),
-  tokenOut: z.string().min(1),
-  amount: z.string().min(1),
-  limitPrice: z.string().min(1),
-  payload: z.string().min(1),
+app.use(express.json({ limit: "1mb" }));
+app.use(attachRequestId);
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    logger.info(
+      {
+        reqId: req.requestId,
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        durationMs: Date.now() - start,
+      },
+      "request completed",
+    );
+  });
+  next();
 });
+
+const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "invalid address");
+const decimalString = z
+  .string()
+  .regex(/^\d+(\.\d+)?$/, "must be a positive decimal string")
+  .refine((val) => Number(val) > 0, "value must be positive");
+
+const orderSchema = z
+  .object({
+    trader: address,
+    tokenIn: address,
+    tokenOut: address,
+    amount: decimalString,
+    limitPrice: decimalString,
+    payload: z.string().min(1),
+  })
+  .refine((order) => order.tokenIn.toLowerCase() !== order.tokenOut.toLowerCase(), {
+    message: "tokenIn and tokenOut must differ",
+    path: ["tokenOut"],
+  });
 
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     measurement: config.measurement,
     hook: config.hookAddress,
+    pendingOrders: queue.size(),
     timestamp: Date.now(),
   });
 });
@@ -38,25 +70,40 @@ app.get("/orders/:orderId", (req, res) => {
   res.json(order);
 });
 
-app.post("/orders", async (req, res) => {
+app.get("/metrics", (_req, res) => {
+  const stats = queue.stats();
+  res.json({
+    pending: queue.size(),
+    stats,
+  });
+});
+
+app.post("/orders", requireGatewayAuth, async (req, res) => {
   const parsed = orderSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
 
+  if (queue.size() >= config.maxPendingOrders) {
+    logger.warn({ reqId: req.requestId }, "order queue at capacity");
+    return res.status(503).json({ error: "order_queue_full" });
+  }
+
   const entry = queue.enqueue(parsed.data);
   processOrder(entry.order).catch((err) => {
-    console.error("order processing failed", err);
-    queue.markFailed(entry.order.orderId, (err as Error).message);
+    const message = (err as Error).message;
+    logger.error({ orderId: entry.order.orderId, err: message }, "order processing failed");
+    queue.markFailed(entry.order.orderId, message);
   });
 
   res.status(202).json({ orderId: entry.order.orderId, status: entry.status });
 });
 
 queue.onChange((item) => {
+  logger.info({ orderId: item.order.orderId, status: item.status }, "queue status update");
   if (item.status === "settled" && item.settlement) {
     notifyGateway(item).catch((err) => {
-      console.error("failed to notify gateway", err);
+      logger.error({ orderId: item.order.orderId, err: (err as Error).message }, "failed to notify gateway");
     });
   }
 });
@@ -114,15 +161,14 @@ async function notifyGateway(item: QueueItem) {
     },
     {
       headers: config.gatewayApiKey ? { "x-api-key": config.gatewayApiKey } : undefined,
-      timeout: 5_000,
-    }
+      timeout: config.gatewayTimeoutMs,
+    },
   );
+  logger.info({ orderId: item.order.orderId }, "pushed settlement to gateway");
 }
 
 const port = config.port;
 app.listen(port, "0.0.0.0", () => {
-  console.log(
-    `EigenDark EigenCompute app listening on :${port} (measurement ${config.measurement})`
-  );
+  logger.info({ port: config.port, measurement: config.measurement }, "EigenDark EigenCompute app listening");
 });
 

@@ -31,15 +31,30 @@ curl -fsSL https://eigenx-scripts.s3.us-east-1.amazonaws.com/install-eigenx.sh |
 ```bash
 cd off-chain/compute/app
 cp env.example .env        # populate with your hook/vault addresses + attestor key
-pnm install
+pnpm install
 pnpm dev                   # runs ts-node with nodemon on http://localhost:8080
 ```
 
+### Environment variables
+
+| Name | Description |
+| --- | --- |
+| `HOOK_ADDRESS`, `VAULT_ADDRESS` | On-chain contracts this enclave settles against |
+| `ATTESTOR_PRIVATE_KEY` | ECDSA key that signs EIP‑712 settlements |
+| `ATTESTATION_MEASUREMENT` | EigenCompute measurement hash surfaced on-chain |
+| `GATEWAY_WEBHOOK_URL` | Where to POST generated settlements |
+| `GATEWAY_API_KEY` | Optional `x-api-key` header for webhook authentication |
+| `ORDER_API_KEY` | Optional `x-api-key` clients must present to call `/orders` |
+| `MAX_PENDING_ORDERS` | Back-pressure limit before returning `503` |
+| `GATEWAY_TIMEOUT_MS` | HTTP timeout when notifying the public gateway |
+| `LOG_LEVEL` | `pino` log level (`info`, `debug`, etc.) |
+
 The service exposes:
 
-- `GET /health` – readiness probe + current measurement
-- `POST /orders` – ingest encrypted order payloads (mirrors gateway contract)
+- `GET /health` – readiness probe + current measurement + current queue depth
+- `POST /orders` – ingest encrypted order payloads (`x-api-key` protected when `ORDER_API_KEY` is set)
 - `GET /orders/:orderId` – inspect queue status
+- `GET /metrics` – JSON summary of queue status (`queued`, `processing`, `settled`, `failed`)
 
 When a request arrives the mock engine:
 
@@ -47,8 +62,8 @@ When a request arrives the mock engine:
 2. Simulates pricing/matching (replace with real enclave business logic)
 3. Builds a `Settlement` payload
 4. Signs it with the attestor key (EIP‑712, `EigenDarkSettlement` domain)
-5. Emits a webhook to `GATEWAY_WEBHOOK_URL` so the public gateway can relay the
-   settlement to on-chain contracts
+5. Emits a webhook to `GATEWAY_WEBHOOK_URL` (with optional `GATEWAY_API_KEY`) so
+   the public gateway can relay the settlement to on-chain contracts
 
 ## Container build (for EigenCompute)
 

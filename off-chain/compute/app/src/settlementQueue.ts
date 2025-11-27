@@ -3,11 +3,24 @@ import { EncryptedOrder, QueueItem, SettlementEnvelope } from "./types.js";
 
 type Listener = (item: QueueItem) => void;
 
+export type QueueStats = {
+  queued: number;
+  processing: number;
+  settled: number;
+  failed: number;
+};
+
 export class SettlementQueue {
   private items = new Map<string, QueueItem>();
   private listeners: Listener[] = [];
 
+  constructor(private readonly capacity: number = Infinity) {}
+
   enqueue(order: Omit<EncryptedOrder, "orderId" | "receivedAt">): QueueItem {
+    if (this.items.size >= this.capacity) {
+      throw new Error("order queue at capacity");
+    }
+
     const entry: QueueItem = {
       order: {
         ...order,
@@ -46,6 +59,18 @@ export class SettlementQueue {
 
   get(orderId: string) {
     return this.items.get(orderId);
+  }
+
+  size() {
+    return this.items.size;
+  }
+
+  stats(): QueueStats {
+    const summary: QueueStats = { queued: 0, processing: 0, settled: 0, failed: 0 };
+    for (const item of this.items.values()) {
+      summary[item.status] += 1;
+    }
+    return summary;
   }
 
   onChange(listener: Listener) {
