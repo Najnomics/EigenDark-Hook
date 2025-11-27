@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import { z } from "zod";
 import axios from "axios";
 import { config } from "./config.js";
+import { verifySettlement } from "./settlementVerifier.js";
+import { SettlementPayload, VerifiedSettlement } from "./types.js";
 
 dotenv.config();
 
@@ -23,6 +25,26 @@ const orderSchema = z.object({
   payload: z.string().min(1) // encrypted blob for EigenCompute enclave
 });
 
+const settlementSchema = z.object({
+  orderId: z.string().min(1),
+  settlement: z.object({
+    orderId: z.string().min(1),
+    poolId: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
+    trader: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+    delta0: z.string(),
+    delta1: z.string(),
+    submittedAt: z.number(),
+    enclaveMeasurement: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
+  }),
+  attestation: z.object({
+    signature: z.string(),
+    digest: z.string(),
+    measurement: z.string(),
+  }),
+});
+
+const verifiedSettlements = new Map<string, VerifiedSettlement>();
+
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
 });
@@ -42,14 +64,33 @@ app.post("/orders", async (req, res) => {
   }
 });
 
-app.post("/settlements", (req, res) => {
+app.post("/settlements", async (req, res) => {
   if (config.computeWebhookKey && req.headers["x-api-key"] !== config.computeWebhookKey) {
     return res.status(401).json({ error: "invalid api key" });
   }
 
-  console.log("Settlement received from EigenCompute", req.body);
-  // TODO: verify attestation, relay to off-chain signing service or direct on-chain submission
-  res.status(204).send();
+  const parsed = settlementSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.flatten() });
+  }
+
+  try {
+    const verified = await verifySettlement(parsed.data as SettlementPayload);
+    verifiedSettlements.set(verified.orderId, verified);
+    console.log("Verified settlement", verified);
+    res.status(204).send();
+  } catch (error) {
+    console.error("Invalid settlement attestation", error);
+    res.status(400).json({ error: "invalid_attestation" });
+  }
+});
+
+app.get("/settlements/:orderId", (req, res) => {
+  const item = verifiedSettlements.get(req.params.orderId);
+  if (!item) {
+    return res.status(404).json({ error: "settlement not found" });
+  }
+  res.json(item);
 });
 
 app.listen(config.port, () => {
