@@ -10,12 +10,13 @@ export type EncryptedOrder = {
 };
 
 export type SettlementInstruction = {
-  orderId: string;
+  orderId: `0x${string}`;
   poolId: `0x${string}`;
   trader: string;
   delta0: bigint;
   delta1: bigint;
   submittedAt: number;
+  enclaveMeasurement: `0x${string}`;
 };
 
 export type SettlementAttestation = {

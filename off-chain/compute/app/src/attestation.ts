@@ -33,23 +33,18 @@ export async function signSettlement(settlement: SettlementInstruction): Promise
     verifyingContract: config.hookAddress,
   } as const;
 
-  const settlementWithMeasurement = {
-    ...settlement,
-    enclaveMeasurement: config.measurement,
-  };
-
-  const digest = await wallet.signTypedData({
+  const signature = await wallet.signTypedData({
     account,
     domain,
     types: settlementTypes,
     primaryType: "Settlement",
-    message: settlementWithMeasurement,
+    message: settlement,
   });
 
   return {
-    measurement: config.measurement,
-    signature: digest,
-    digest,
+    measurement: settlement.enclaveMeasurement,
+    signature,
+    digest: signature,
   };
 }
 

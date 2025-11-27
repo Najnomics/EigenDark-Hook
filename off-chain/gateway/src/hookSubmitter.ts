@@ -1,4 +1,4 @@
-import { createWalletClient, http } from "viem";
+import { createWalletClient, defineChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { config } from "./config.js";
 import { SettlementPayload, VerifiedSettlement } from "./types.js";
@@ -28,15 +28,28 @@ const hookAbi = [
   },
 ] as const;
 
-let wallet = (() => {
-  if (!config.rpcUrl || !config.submitterKey) return undefined;
-  const account = privateKeyToAccount(config.submitterKey as `0x${string}`);
-  return createWalletClient({
-    account,
-    chain: undefined,
-    transport: http(config.rpcUrl),
-  });
-})();
+const chain =
+  config.rpcUrl && config.chainId
+    ? defineChain({
+        id: config.chainId,
+        name: "eigendark",
+        network: "eigendark",
+        nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+        rpcUrls: {
+          default: { http: [config.rpcUrl] },
+          public: { http: [config.rpcUrl] },
+        },
+      })
+    : undefined;
+
+const wallet =
+  config.rpcUrl && config.submitterKey && chain
+    ? createWalletClient({
+        account: privateKeyToAccount(config.submitterKey as `0x${string}`),
+        chain,
+        transport: http(config.rpcUrl),
+      })
+    : undefined;
 
 export async function submitToHook(payload: SettlementPayload, verified: VerifiedSettlement) {
   if (!wallet) {
@@ -62,7 +75,7 @@ export async function submitToHook(payload: SettlementPayload, verified: Verifie
         payload.attestation.signature,
       ],
     });
-    console.log("Submitted settlement to hook", verified.orderId);
+    console.log("Submitted settlement to hook", verified.settlementOrderId);
   } catch (error) {
     console.error("Failed to submit settlement on-chain", error);
   }

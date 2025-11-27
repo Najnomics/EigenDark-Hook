@@ -1,4 +1,4 @@
-import { recoverTypedDataAddress } from "viem";
+import { Hex, recoverTypedDataAddress } from "viem";
 import { config } from "./config.js";
 import { SettlementPayload, VerifiedSettlement } from "./types.js";
 
@@ -26,7 +26,15 @@ export async function verifySettlement(payload: SettlementPayload): Promise<Veri
     throw new Error("measurement mismatch");
   }
 
-  const message = payload.settlement;
+  const message = {
+    orderId: payload.settlement.orderId,
+    poolId: payload.settlement.poolId,
+    trader: payload.settlement.trader,
+    delta0: BigInt(payload.settlement.delta0),
+    delta1: BigInt(payload.settlement.delta1),
+    submittedAt: BigInt(payload.settlement.submittedAt),
+    enclaveMeasurement: payload.settlement.enclaveMeasurement,
+  } as const;
   const signer = await recoverTypedDataAddress({
     domain,
     types: settlementTypes,
@@ -36,13 +44,14 @@ export async function verifySettlement(payload: SettlementPayload): Promise<Veri
   });
 
   return {
-    orderId: payload.orderId,
+    clientOrderId: payload.orderId,
+    settlementOrderId: message.orderId,
     poolId: message.poolId,
     trader: message.trader,
-    delta0: BigInt(message.delta0),
-    delta1: BigInt(message.delta1),
-    submittedAt: message.submittedAt,
-    signer,
+    delta0: message.delta0,
+    delta1: message.delta1,
+    submittedAt: Number(message.submittedAt),
+    signer: signer as Hex,
   };
 }
 

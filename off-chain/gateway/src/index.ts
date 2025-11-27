@@ -78,7 +78,7 @@ app.post("/settlements", async (req, res) => {
   try {
     const payload = parsed.data as SettlementPayload;
     const verified = await verifySettlement(payload);
-    verifiedSettlements.set(verified.orderId, verified);
+    verifiedSettlements.set(verified.clientOrderId, verified);
     console.log("Verified settlement", verified);
     await submitToHook(payload, verified);
     res.status(204).send();

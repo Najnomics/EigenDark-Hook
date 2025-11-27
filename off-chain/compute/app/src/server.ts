@@ -76,6 +76,7 @@ function buildSettlement(order: EncryptedOrder): SettlementInstruction {
   const poolId = keccak256(
     stringToHex(`${order.tokenIn.toLowerCase()}-${order.tokenOut.toLowerCase()}`)
   ) as `0x${string}`;
+  const orderHash = keccak256(stringToHex(order.orderId)) as `0x${string}`;
 
   const amountIn = parseUnits(order.amount, 18);
   const price = parseUnits(order.limitPrice, 18);
@@ -83,12 +84,13 @@ function buildSettlement(order: EncryptedOrder): SettlementInstruction {
   const delta1 = toInt128((amountIn * price) / 10n ** 18n);
 
   return {
-    orderId: order.orderId,
+    orderId: orderHash,
     poolId,
     trader: order.trader,
     delta0,
     delta1,
     submittedAt: Math.floor(Date.now() / 1000),
+    enclaveMeasurement: config.measurement,
   };
 }
 
