@@ -2,6 +2,7 @@ import { Hash, createWalletClient, defineChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { config } from "./config.js";
 import { SettlementPayload, VerifiedSettlement } from "./types.js";
+import { logger } from "./logger.js";
 
 const hookAbi = [
   {
@@ -60,7 +61,7 @@ export async function submitToHook(
   verified: VerifiedSettlement,
 ): Promise<Hash | undefined> {
   if (!wallet) {
-    console.warn("Hook submitter not configured; skipping on-chain call");
+    logger.warn({ orderId: verified.settlementOrderId }, "Hook submitter not configured; skipping on-chain call");
     return undefined;
   }
 
@@ -82,10 +83,7 @@ export async function submitToHook(
     ],
   });
 
-  console.log("Submitted settlement to hook", {
-    orderId: verified.settlementOrderId,
-    txHash,
-  });
+  logger.info({ orderId: verified.settlementOrderId, txHash }, "Submitted settlement to hook");
   return txHash;
 }
 

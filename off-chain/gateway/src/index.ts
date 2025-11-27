@@ -15,9 +15,29 @@ import {
 } from "./settlementStore.js";
 import { startRetryWorker } from "./retryWorker.js";
 import { requireClientAuth } from "./auth.js";
+import { logOrderSubmission } from "./orderAudit.js";
+import { attachRequestId } from "./requestContext.js";
+import { logger } from "./logger.js";
 
 const app = express();
 app.use(express.json());
+app.use(attachRequestId);
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    logger.info(
+      {
+        reqId: req.requestId,
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        durationMs: Date.now() - start,
+      },
+      "request completed",
+    );
+  });
+  next();
+});
 
 const computeClient = axios.create({
   baseURL: config.computeUrl,
@@ -63,9 +83,15 @@ app.post("/orders", requireClientAuth, async (req, res) => {
 
   try {
     const response = await computeClient.post("/orders", parsed.data);
+    if (response.data?.orderId) {
+      await logOrderSubmission(response.data.orderId, parsed.data);
+    }
     res.status(response.status).json(response.data);
   } catch (error) {
-    console.error("Unable to forward order to EigenCompute", error);
+    logger.error(
+      { reqId: req.requestId, err: error instanceof Error ? error.message : String(error) },
+      "Unable to forward order to EigenCompute",
+    );
     res.status(502).json({ error: "failed_to_reach_compute" });
   }
 });
@@ -85,7 +111,7 @@ app.post("/settlements", async (req, res) => {
   try {
     const verified = await verifySettlement(payload);
     const record = upsertSettlement(payload, verified);
-    console.log("Verified settlement", serializeSettlement(record));
+    logger.info({ reqId: req.requestId, settlement: serializeSettlement(record) }, "Verified settlement");
 
     try {
       const txHash = await submitToHook(payload, verified);
@@ -94,14 +120,17 @@ app.post("/settlements", async (req, res) => {
       }
     } catch (error) {
       const message = (error as Error).message || "hook submission failed";
-      console.error("Failed to submit settlement", message);
+      logger.error({ reqId: req.requestId, orderId: record.clientOrderId, err: message }, "Hook submission failed");
       markFailed(record.clientOrderId, message);
       return res.status(502).json({ error: "hook_submission_failed" });
     }
 
     res.status(204).send();
   } catch (error) {
-    console.error("Invalid settlement attestation", error);
+    logger.warn(
+      { reqId: req.requestId, err: error instanceof Error ? error.message : String(error) },
+      "Invalid settlement attestation",
+    );
     res.status(400).json({ error: "invalid_attestation" });
   }
 });
@@ -118,12 +147,12 @@ async function bootstrap() {
   await initSettlementStore();
   startRetryWorker();
   app.listen(config.port, () => {
-    console.log(`EigenDark Gateway listening on :${config.port}`);
+    logger.info({ port: config.port }, "EigenDark Gateway listening");
   });
 }
 
 bootstrap().catch((error) => {
-  console.error("Failed to start gateway", error);
+  logger.error({ err: error instanceof Error ? error.message : String(error) }, "Failed to start gateway");
   process.exit(1);
 });
 

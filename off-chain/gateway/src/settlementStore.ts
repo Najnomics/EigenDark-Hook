@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { config } from "./config.js";
 import { SettlementPayload, VerifiedSettlement } from "./types.js";
+import { logger } from "./logger.js";
 
 export type StoredSettlement = {
   clientOrderId: string;
@@ -34,7 +35,10 @@ export async function initSettlementStore() {
     });
   } catch (error: any) {
     if (error.code !== "ENOENT") {
-      console.warn("Failed to load settlement store", error);
+      logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        "Failed to load settlement store",
+      );
     }
   }
 }
@@ -92,7 +96,7 @@ async function persistStore() {
   try {
     await fs.writeFile(storePath, payload, "utf8");
   } catch (error) {
-    console.error("Failed to persist settlement store", error);
+    logger.error({ err: error instanceof Error ? error.message : String(error) }, "Failed to persist settlement store");
   }
 }
 
