@@ -1,4 +1,5 @@
 import "dotenv/config";
+import path from "path";
 
 function requireEnv(key: string): string {
   const value = process.env[key];
@@ -17,5 +18,7 @@ export const config = {
   measurement: requireEnv("ATTESTATION_MEASUREMENT") as `0x${string}`,
   rpcUrl: process.env.HOOK_RPC_URL,
   submitterKey: process.env.HOOK_SUBMITTER_KEY,
+  storageDir: process.env.GATEWAY_DATA_DIR ?? path.resolve(process.cwd(), "data"),
+  retryIntervalMs: Number(process.env.SETTLEMENT_RETRY_MS ?? 30_000),
 };
 
