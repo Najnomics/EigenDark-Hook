@@ -4,6 +4,7 @@ import { z } from "zod";
 import axios from "axios";
 import { config } from "./config.js";
 import { verifySettlement } from "./settlementVerifier.js";
+import { submitToHook } from "./hookSubmitter.js";
 import { SettlementPayload, VerifiedSettlement } from "./types.js";
 
 dotenv.config();
@@ -75,9 +76,11 @@ app.post("/settlements", async (req, res) => {
   }
 
   try {
-    const verified = await verifySettlement(parsed.data as SettlementPayload);
+    const payload = parsed.data as SettlementPayload;
+    const verified = await verifySettlement(payload);
     verifiedSettlements.set(verified.orderId, verified);
     console.log("Verified settlement", verified);
+    await submitToHook(payload, verified);
     res.status(204).send();
   } catch (error) {
     console.error("Invalid settlement attestation", error);

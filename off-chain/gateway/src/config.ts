@@ -15,5 +15,7 @@ export const config = {
   chainId: Number(process.env.CHAIN_ID ?? 11155111),
   hookAddress: requireEnv("HOOK_ADDRESS") as `0x${string}`,
   measurement: requireEnv("ATTESTATION_MEASUREMENT") as `0x${string}`,
+  rpcUrl: process.env.HOOK_RPC_URL,
+  submitterKey: process.env.HOOK_SUBMITTER_KEY,
 };
 
