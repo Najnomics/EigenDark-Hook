@@ -1,0 +1,19 @@
+import "dotenv/config";
+
+function requireEnv(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required env var: ${key}`);
+  }
+  return value;
+}
+
+export const config = {
+  port: Number(process.env.PORT ?? 4000),
+  computeUrl: process.env.EIGEN_COMPUTE_URL ?? "http://127.0.0.1:8080",
+  computeWebhookKey: process.env.COMPUTE_WEBHOOK_KEY ?? "",
+  chainId: Number(process.env.CHAIN_ID ?? 11155111),
+  hookAddress: requireEnv("HOOK_ADDRESS") as `0x${string}`,
+  measurement: requireEnv("ATTESTATION_MEASUREMENT") as `0x${string}`,
+};
+

@@ -17,10 +17,12 @@ Environment variables (`.env`):
 
 ```
 PORT=4000
-EIGEN_TEE_URL=https://example-enclave
-API_KEY=dev
+CHAIN_ID=11155111
+HOOK_ADDRESS=0xYourHookAddress
+ATTESTATION_MEASUREMENT=0xdeadbeefcafefeed
 EIGEN_COMPUTE_URL=http://localhost:8080
 COMPUTE_WEBHOOK_KEY=dev-hook
+API_KEY=dev
 ```
 
 ## Scripts

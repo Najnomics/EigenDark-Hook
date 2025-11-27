@@ -2,6 +2,7 @@ import express from "express";
 import dotenv from "dotenv";
 import { z } from "zod";
 import axios from "axios";
+import { config } from "./config.js";
 
 dotenv.config();
 
@@ -9,7 +10,7 @@ const app = express();
 app.use(express.json());
 
 const computeClient = axios.create({
-  baseURL: process.env.EIGEN_COMPUTE_URL ?? "http://127.0.0.1:8080",
+  baseURL: config.computeUrl,
   timeout: 5000,
 });
 
@@ -42,8 +43,7 @@ app.post("/orders", async (req, res) => {
 });
 
 app.post("/settlements", (req, res) => {
-  const apiKey = process.env.COMPUTE_WEBHOOK_KEY;
-  if (apiKey && req.headers["x-api-key"] !== apiKey) {
+  if (config.computeWebhookKey && req.headers["x-api-key"] !== config.computeWebhookKey) {
     return res.status(401).json({ error: "invalid api key" });
   }
 
@@ -52,8 +52,7 @@ app.post("/settlements", (req, res) => {
   res.status(204).send();
 });
 
-const port = Number(process.env.PORT ?? 4000);
-app.listen(port, () => {
-  console.log(`EigenDark Gateway listening on :${port}`);
+app.listen(config.port, () => {
+  console.log(`EigenDark Gateway listening on :${config.port}`);
 });
 
