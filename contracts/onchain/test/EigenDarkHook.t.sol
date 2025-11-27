@@ -47,6 +47,16 @@ contract EigenDarkHookTest is BaseTest {
 
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(hook)));
         poolId = poolKey.toId();
+
+        hook.configurePool(
+            poolKey,
+            EigenDarkHook.PoolConfigInput({
+                enabled: true,
+                maxAbsDelta0: type(uint128).max,
+                maxAbsDelta1: type(uint128).max,
+                maxSettlementAge: 0
+            })
+        );
     }
 
     function testRegisterSettlement() public {
@@ -73,6 +83,47 @@ contract EigenDarkHookTest is BaseTest {
 
         vm.expectRevert(EigenDarkHook.OrderAlreadySettled.selector);
         hook.registerSettlement(settlement, signature);
+    }
+
+    function testRegisterSettlementRevertsWhenPoolNotConfigured() public {
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        settlement.poolId = PoolId.wrap(bytes32("unconfigured"));
+        bytes memory signature = _signSettlement(settlement);
+
+        vm.expectRevert(EigenDarkHook.PoolNotConfigured.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testRegisterSettlementRevertsWhenDeltaTooLarge() public {
+        hook.configurePool(
+            poolKey,
+            EigenDarkHook.PoolConfigInput({
+                enabled: true,
+                maxAbsDelta0: uint128(5e17),
+                maxAbsDelta1: type(uint128).max,
+                maxSettlementAge: 0
+            })
+        );
+
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        bytes memory signature = _signSettlement(settlement);
+
+        vm.expectRevert(EigenDarkHook.DeltaLimitExceeded.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testConfigurePoolRequiresHookAddress() public {
+        PoolKey memory wrongKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(this)));
+        vm.expectRevert(EigenDarkHook.InvalidPoolHook.selector);
+        hook.configurePool(
+            wrongKey,
+            EigenDarkHook.PoolConfigInput({
+                enabled: true,
+                maxAbsDelta0: type(uint128).max,
+                maxAbsDelta1: type(uint128).max,
+                maxSettlementAge: 0
+            })
+        );
     }
 
     function testRegisterSettlementRevertsOnBadSignature() public {

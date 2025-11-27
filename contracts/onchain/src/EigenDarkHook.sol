@@ -14,6 +14,7 @@ import {IPoolManager, SwapParams} from "@uniswap/v4-core/src/interfaces/IPoolMan
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {BeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 
 /**
  * @title EigenDarkHook
@@ -38,6 +39,12 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
     error SettlementsPaused();
     /// @notice Thrown when trying to set an empty vault address.
     error VaultRequired();
+    /// @notice Thrown when settling for a pool that has not been configured.
+    error PoolNotConfigured();
+    /// @notice Thrown when a pool configuration references an unexpected hook.
+    error InvalidPoolHook();
+    /// @notice Thrown when a settlement exceeds per-pool risk limits.
+    error DeltaLimitExceeded();
 
     struct Config {
         address attestor;
@@ -59,10 +66,25 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
         "Settlement(bytes32 orderId,bytes32 poolId,address trader,int128 delta0,int128 delta1,uint64 submittedAt,bytes32 enclaveMeasurement)"
     );
 
+    struct PoolConfig {
+        bool enabled;
+        uint128 maxAbsDelta0;
+        uint128 maxAbsDelta1;
+        uint64 maxSettlementAge;
+    }
+
+    struct PoolConfigInput {
+        bool enabled;
+        uint128 maxAbsDelta0;
+        uint128 maxAbsDelta1;
+        uint64 maxSettlementAge;
+    }
+
     Config public config;
     IEigenDarkVault public vault;
     mapping(bytes32 => bool) public settledOrders;
     bool public settlementsPaused;
+    mapping(PoolId => PoolConfig) public poolConfigs;
 
     event ConfigUpdated(address indexed attestor, bytes32 indexed enclaveMeasurement, uint32 attestationWindow);
     event SettlementRecorded(
@@ -70,6 +92,9 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
     );
     event VaultUpdated(address indexed previousVault, address indexed newVault);
     event SettlementsPauseUpdated(bool paused);
+    event PoolConfigured(
+        PoolId indexed poolId, bool enabled, uint128 maxAbsDelta0, uint128 maxAbsDelta1, uint64 maxSettlementAge
+    );
 
     constructor(IPoolManager _poolManager, Config memory cfg, address initialOwner, IEigenDarkVault _vault)
         BaseHook(_poolManager)
@@ -107,6 +132,20 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
         _setConfig(cfg);
     }
 
+    function configurePool(PoolKey calldata key, PoolConfigInput calldata poolCfg) external onlyOwner {
+        if (address(key.hooks) != address(this)) revert InvalidPoolHook();
+        PoolId poolId = key.toId();
+
+        poolConfigs[poolId] = PoolConfig({
+            enabled: poolCfg.enabled,
+            maxAbsDelta0: poolCfg.maxAbsDelta0,
+            maxAbsDelta1: poolCfg.maxAbsDelta1,
+            maxSettlementAge: poolCfg.maxSettlementAge
+        });
+
+        emit PoolConfigured(poolId, poolCfg.enabled, poolCfg.maxAbsDelta0, poolCfg.maxAbsDelta1, poolCfg.maxSettlementAge);
+    }
+
     function setVault(IEigenDarkVault newVault) external onlyOwner {
         if (address(newVault) == address(0)) revert VaultRequired();
         address oldVault = address(vault);
@@ -140,6 +179,7 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
 
         if (block.timestamp < settlement.submittedAt) revert StaleAttestation();
         if (block.timestamp - settlement.submittedAt > localConfig.attestationWindow) revert StaleAttestation();
+        _enforcePoolLimits(settlement);
 
         bytes32 digest = _hashTypedDataV4(_hashSettlement(settlement));
         address signer = ECDSA.recover(digest, signature);
@@ -167,6 +207,31 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
                 settlement.enclaveMeasurement
             )
         );
+    }
+
+    function _enforcePoolLimits(Settlement calldata settlement) private view {
+        PoolConfig memory poolCfg = poolConfigs[settlement.poolId];
+        if (!poolCfg.enabled) revert PoolNotConfigured();
+
+        if (poolCfg.maxSettlementAge != 0 && block.timestamp - settlement.submittedAt > poolCfg.maxSettlementAge) {
+            revert StaleAttestation();
+        }
+
+        if (poolCfg.maxAbsDelta0 != 0 && _absInt128(settlement.delta0) > poolCfg.maxAbsDelta0) {
+            revert DeltaLimitExceeded();
+        }
+
+        if (poolCfg.maxAbsDelta1 != 0 && _absInt128(settlement.delta1) > poolCfg.maxAbsDelta1) {
+            revert DeltaLimitExceeded();
+        }
+    }
+
+    function _absInt128(int128 value) private pure returns (uint128) {
+        int256 casted = int256(value);
+        if (casted < 0) {
+            casted = -casted;
+        }
+        return uint128(uint256(casted));
     }
 }
 
