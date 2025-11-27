@@ -34,6 +34,10 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
     error StaleAttestation();
     /// @notice Thrown when attempting to reuse an orderId.
     error OrderAlreadySettled();
+    /// @notice Thrown when settlements are paused by governance.
+    error SettlementsPaused();
+    /// @notice Thrown when trying to set an empty vault address.
+    error VaultRequired();
 
     struct Config {
         address attestor;
@@ -56,20 +60,23 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
     );
 
     Config public config;
-    IEigenDarkVault public immutable vault;
+    IEigenDarkVault public vault;
     mapping(bytes32 => bool) public settledOrders;
+    bool public settlementsPaused;
 
     event ConfigUpdated(address indexed attestor, bytes32 indexed enclaveMeasurement, uint32 attestationWindow);
     event SettlementRecorded(
         bytes32 indexed orderId, PoolId indexed poolId, address indexed trader, int128 delta0, int128 delta1
     );
+    event VaultUpdated(address indexed previousVault, address indexed newVault);
+    event SettlementsPauseUpdated(bool paused);
 
     constructor(IPoolManager _poolManager, Config memory cfg, address initialOwner, IEigenDarkVault _vault)
         BaseHook(_poolManager)
         Ownable(initialOwner)
         EIP712("EigenDarkSettlement", "0.1")
     {
-        require(address(_vault) != address(0), "EigenDarkHook: VAULT_REQUIRED");
+        if (address(_vault) == address(0)) revert VaultRequired();
         vault = _vault;
         _setConfig(cfg);
     }
@@ -100,6 +107,18 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
         _setConfig(cfg);
     }
 
+    function setVault(IEigenDarkVault newVault) external onlyOwner {
+        if (address(newVault) == address(0)) revert VaultRequired();
+        address oldVault = address(vault);
+        vault = newVault;
+        emit VaultUpdated(oldVault, address(newVault));
+    }
+
+    function setSettlementsPaused(bool paused) external onlyOwner {
+        settlementsPaused = paused;
+        emit SettlementsPauseUpdated(paused);
+    }
+
     function _setConfig(Config memory cfg) internal {
         if (cfg.attestor == address(0)) revert InvalidAttestor();
         if (cfg.attestationWindow == 0) revert StaleAttestation();
@@ -115,6 +134,7 @@ contract EigenDarkHook is BaseHook, Ownable, EIP712 {
     function registerSettlement(Settlement calldata settlement, bytes calldata signature) external {
         Config memory localConfig = config;
 
+        if (settlementsPaused) revert SettlementsPaused();
         if (settlement.enclaveMeasurement != localConfig.enclaveMeasurement) revert InvalidMeasurement();
         if (settledOrders[settlement.orderId]) revert OrderAlreadySettled();
 

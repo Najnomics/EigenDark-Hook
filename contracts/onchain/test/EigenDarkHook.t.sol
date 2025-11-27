@@ -102,6 +102,30 @@ contract EigenDarkHookTest is BaseTest {
         hook.beforeSwap(address(this), poolKey, params, "");
     }
 
+    function testSettlementFailsWhenPaused() public {
+        hook.setSettlementsPaused(true);
+
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        bytes memory signature = _signSettlement(settlement);
+
+        vm.expectRevert(EigenDarkHook.SettlementsPaused.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testOwnerCanUpdateVault() public {
+        MockVault newVault = new MockVault();
+        newVault.setHook(address(hook));
+
+        hook.setVault(newVault);
+
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        bytes memory signature = _signSettlement(settlement);
+
+        hook.registerSettlement(settlement, signature);
+        assertEq(newVault.lastTrader(), settlement.trader);
+        assertEq(PoolId.unwrap(newVault.lastPool()), PoolId.unwrap(settlement.poolId));
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                                   utils                                    */
     /* -------------------------------------------------------------------------- */
