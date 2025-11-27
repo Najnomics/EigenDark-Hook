@@ -51,6 +51,10 @@ const wallet =
       })
     : undefined;
 
+export function isSubmitterReady(): boolean {
+  return Boolean(wallet);
+}
+
 export async function submitToHook(
   payload: SettlementPayload,
   verified: VerifiedSettlement,

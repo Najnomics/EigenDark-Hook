@@ -13,6 +13,7 @@ import {
   serializeSettlement,
   upsertSettlement,
 } from "./settlementStore.js";
+import { startRetryWorker } from "./retryWorker.js";
 
 const app = express();
 app.use(express.json());
@@ -114,6 +115,7 @@ app.get("/settlements/:orderId", (req, res) => {
 
 async function bootstrap() {
   await initSettlementStore();
+  startRetryWorker();
   app.listen(config.port, () => {
     console.log(`EigenDark Gateway listening on :${config.port}`);
   });
