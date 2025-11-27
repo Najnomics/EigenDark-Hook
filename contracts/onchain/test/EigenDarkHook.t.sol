@@ -7,7 +7,7 @@ import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
-import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 
 import {EigenDarkHook} from "../src/EigenDarkHook.sol";
 import {BaseTest} from "./utils/BaseTest.sol";
@@ -33,13 +33,17 @@ contract EigenDarkHookTest is BaseTest {
         deployArtifactsAndLabel();
         (currency0, currency1) = deployCurrencyPair();
 
-        EigenDarkHook.Config memory cfg =
-            EigenDarkHook.Config({attestor: attestor, enclaveMeasurement: MEASUREMENT, attestationWindow: 1 hours});
+        EigenDarkHook.Config memory cfg = EigenDarkHook.Config({attestationWindow: 1 hours});
 
         vault = new MockVault();
 
         // Hook addresses require the permission bits encoded into the address.
-        address flags = address(uint160(Hooks.BEFORE_SWAP_FLAG) ^ (0x4444 << 144));
+        // Combine all enabled hook flags: beforeSwap, afterSwap, beforeAddLiquidity, beforeRemoveLiquidity
+        uint160 combinedFlags = uint160(
+            Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                | Hooks.BEFORE_REMOVE_LIQUIDITY_FLAG
+        );
+        address flags = address(combinedFlags ^ (0x4444 << 144));
         bytes memory constructorArgs = abi.encode(poolManager, cfg, address(this), IEigenDarkVault(address(vault)));
         deployCodeTo("EigenDarkHook.sol:EigenDarkHook", constructorArgs, flags);
         hook = EigenDarkHook(flags);
@@ -48,13 +52,18 @@ contract EigenDarkHookTest is BaseTest {
         poolKey = PoolKey(currency0, currency1, 3000, 60, IHooks(address(hook)));
         poolId = poolKey.toId();
 
+        hook.setAttestor(attestor, true);
         hook.configurePool(
             poolKey,
             EigenDarkHook.PoolConfigInput({
                 enabled: true,
+                settlementsPaused: false,
+                enclaveMeasurement: MEASUREMENT,
                 maxAbsDelta0: type(uint128).max,
                 maxAbsDelta1: type(uint128).max,
-                maxSettlementAge: 0
+                maxSettlementAge: 0,
+                maxTwapDeviationBps: 50,
+                minCheckedLiquidity: 1
             })
         );
     }
@@ -99,9 +108,13 @@ contract EigenDarkHookTest is BaseTest {
             poolKey,
             EigenDarkHook.PoolConfigInput({
                 enabled: true,
+                settlementsPaused: false,
+                enclaveMeasurement: MEASUREMENT,
                 maxAbsDelta0: uint128(5e17),
                 maxAbsDelta1: type(uint128).max,
-                maxSettlementAge: 0
+                maxSettlementAge: 0,
+                maxTwapDeviationBps: 0,
+                minCheckedLiquidity: 1
             })
         );
 
@@ -119,11 +132,90 @@ contract EigenDarkHookTest is BaseTest {
             wrongKey,
             EigenDarkHook.PoolConfigInput({
                 enabled: true,
+                settlementsPaused: false,
+                enclaveMeasurement: MEASUREMENT,
                 maxAbsDelta0: type(uint128).max,
                 maxAbsDelta1: type(uint128).max,
-                maxSettlementAge: 0
+                maxSettlementAge: 0,
+                maxTwapDeviationBps: 0,
+                minCheckedLiquidity: 1
             })
         );
+    }
+
+    function testRegisterSettlementRevertsWhenMeasurementMismatch() public {
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        settlement.enclaveMeasurement = keccak256("bad");
+        bytes memory signature = _signSettlement(settlement);
+
+        vm.expectRevert(EigenDarkHook.InvalidMeasurement.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testRegisterSettlementRevertsWhenTwapDeviationExceeded() public {
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        settlement.twapDeviationBps = 100;
+        bytes memory signature = _signSettlement(settlement);
+
+        vm.expectRevert(EigenDarkHook.TwapDeviationExceeded.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testRegisterSettlementRevertsWhenLiquidityBelowMin() public {
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        settlement.checkedLiquidity = 0;
+        bytes memory signature = _signSettlement(settlement);
+
+        vm.expectRevert(EigenDarkHook.InsufficientCheckedLiquidity.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testPoolSettlementPause() public {
+        hook.configurePool(
+            poolKey,
+            EigenDarkHook.PoolConfigInput({
+                enabled: true,
+                settlementsPaused: true,
+                enclaveMeasurement: MEASUREMENT,
+                maxAbsDelta0: type(uint128).max,
+                maxAbsDelta1: type(uint128).max,
+                maxSettlementAge: 0,
+                maxTwapDeviationBps: 0,
+                minCheckedLiquidity: 1
+            })
+        );
+
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        bytes memory signature = _signSettlement(settlement);
+
+        vm.expectRevert(EigenDarkHook.PoolSettlementsPaused.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testAttestorRotation() public {
+        EigenDarkHook.Settlement memory settlement = _defaultSettlement();
+        bytes memory signature = _signSettlement(settlement);
+
+        hook.registerSettlement(settlement, signature);
+
+        settlement.orderId = keccak256("order-2");
+        signature = _signSettlement(settlement);
+
+        hook.setAttestor(attestor, false);
+        vm.expectRevert(EigenDarkHook.InvalidAttestor.selector);
+        hook.registerSettlement(settlement, signature);
+    }
+
+    function testLiquidityHooksRevert() public {
+        ModifyLiquidityParams memory params =
+            ModifyLiquidityParams({tickLower: -10, tickUpper: 10, liquidityDelta: 1, salt: bytes32(0)});
+        vm.expectRevert(EigenDarkHook.PublicLiquidityNotAllowed.selector);
+        vm.prank(address(poolManager));
+        hook.beforeAddLiquidity(address(this), poolKey, params, "");
+
+        vm.expectRevert(EigenDarkHook.PublicLiquidityNotAllowed.selector);
+        vm.prank(address(poolManager));
+        hook.beforeRemoveLiquidity(address(this), poolKey, params, "");
     }
 
     function testRegisterSettlementRevertsOnBadSignature() public {
@@ -189,7 +281,11 @@ contract EigenDarkHookTest is BaseTest {
             delta0: int128(int256(1e18)),
             delta1: -int128(int256(2e18)),
             submittedAt: uint64(block.timestamp),
-            enclaveMeasurement: MEASUREMENT
+            enclaveMeasurement: MEASUREMENT,
+            metadataHash: keccak256("metadata"),
+            sqrtPriceX96: 1_000_000 << 32,
+            twapDeviationBps: 25,
+            checkedLiquidity: 10
         });
     }
 
