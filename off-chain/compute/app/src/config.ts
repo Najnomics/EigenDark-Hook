@@ -18,7 +18,25 @@ const envSchema = z.object({
   MAX_PENDING_ORDERS: z.coerce.number().int().positive().default(500),
   GATEWAY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   LOG_LEVEL: z.string().optional(),
+  PYTH_ENDPOINT: z.string().url().optional(),
+  PYTH_TWAP_WINDOW: z.coerce.number().int().positive().max(600).optional(),
+  PYTH_PRICE_IDS: z.string().optional(),
 });
+
+function parsePriceIdMap(raw?: string): Record<string, string> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    const normalized: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      normalized[key.toLowerCase()] = value;
+    }
+    return normalized;
+  } catch (error) {
+    console.warn("Failed to parse PYTH_PRICE_IDS:", (error as Error).message);
+    return {};
+  }
+}
 
 const parsed = envSchema.parse(process.env);
 
@@ -35,5 +53,8 @@ export const config = {
   maxPendingOrders: parsed.MAX_PENDING_ORDERS,
   gatewayTimeoutMs: parsed.GATEWAY_TIMEOUT_MS,
   logLevel: parsed.LOG_LEVEL ?? "info",
+  pythEndpoint: parsed.PYTH_ENDPOINT ?? undefined,
+  pythTwapWindow: parsed.PYTH_TWAP_WINDOW ?? 300,
+  pythPriceIds: parsePriceIdMap(parsed.PYTH_PRICE_IDS),
 };
 

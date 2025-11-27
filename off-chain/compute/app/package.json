@@ -14,6 +14,9 @@
   "license": "MIT",
   "packageManager": "pnpm@10.17.1",
   "dependencies": {
+    "@pythnetwork/hermes-client": "^2.1.0",
+    "@pythnetwork/price-service-client": "^1.10.0",
+    "@pythnetwork/pyth-evm-js": "^2.0.0",
     "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",

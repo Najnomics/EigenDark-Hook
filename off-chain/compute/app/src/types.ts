@@ -17,6 +17,10 @@ export type SettlementInstruction = {
   delta1: bigint;
   submittedAt: number;
   enclaveMeasurement: `0x${string}`;
+  metadataHash: `0x${string}`;
+  sqrtPriceX96: bigint;
+  twapDeviationBps: number;
+  checkedLiquidity: bigint;
 };
 
 export type SettlementAttestation = {

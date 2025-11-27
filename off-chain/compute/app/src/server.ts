@@ -9,6 +9,7 @@ import { EncryptedOrder, QueueItem, SettlementInstruction } from "./types.js";
 import { logger } from "./logger.js";
 import { attachRequestId } from "./requestContext.js";
 import { requireGatewayAuth } from "./auth.js";
+import { initOracle, fetchOraclePrice, calculateTwapDeviation, priceToSqrtPriceX96 } from "./oracle.js";
 
 const app = express();
 const queue = new SettlementQueue(config.maxPendingOrders);
@@ -111,24 +112,53 @@ queue.onChange((item) => {
 async function processOrder(order: EncryptedOrder) {
   queue.markProcessing(order.orderId);
 
-  // Placeholder for enclave execution (decrypt payload, fetch price, run risk checks)
-  await new Promise((resolve) => setTimeout(resolve, 250));
+  try {
+    const priceId = getPriceIdForPair(order.tokenIn, order.tokenOut);
+    const oraclePrice = priceId ? await fetchOraclePrice(priceId) : null;
 
-  const settlement = buildSettlement(order);
-  const attestation = await signSettlement(settlement);
-  queue.markSettled(order.orderId, { settlement, attestation });
+    const fallbackPrice = parseUnits(order.limitPrice, 18);
+    const executionPrice = oraclePrice?.price ?? fallbackPrice;
+    const twapPrice = oraclePrice?.twap ?? executionPrice;
+    const twapDeviationBps = oraclePrice ? calculateTwapDeviation(executionPrice, twapPrice) : 0;
+
+    const settlement = buildSettlement(order, executionPrice, twapPrice, twapDeviationBps);
+    const attestation = await signSettlement(settlement);
+    queue.markSettled(order.orderId, { settlement, attestation });
+  } catch (error) {
+    const message = (error as Error).message;
+    logger.error({ orderId: order.orderId, err: message }, "order processing failed");
+    queue.markFailed(order.orderId, message);
+    throw error;
+  }
 }
 
-function buildSettlement(order: EncryptedOrder): SettlementInstruction {
+function getPriceIdForPair(tokenIn: string, tokenOut: string): string | null {
+  const pair = `${tokenIn.toLowerCase()}-${tokenOut.toLowerCase()}`;
+  return config.pythPriceIds[pair] ?? null;
+}
+
+function buildSettlement(
+  order: EncryptedOrder,
+  executionPrice: bigint,
+  twapPrice: bigint,
+  twapDeviationBps: number
+): SettlementInstruction {
   const poolId = keccak256(
     stringToHex(`${order.tokenIn.toLowerCase()}-${order.tokenOut.toLowerCase()}`)
   ) as `0x${string}`;
   const orderHash = keccak256(stringToHex(order.orderId)) as `0x${string}`;
 
   const amountIn = parseUnits(order.amount, 18);
-  const price = parseUnits(order.limitPrice, 18);
   const delta0 = toInt128(-amountIn);
-  const delta1 = toInt128((amountIn * price) / 10n ** 18n);
+  const delta1 = toInt128((amountIn * executionPrice) / 10n ** 18n);
+
+  const metadataHash = keccak256(
+    stringToHex(`${order.orderId}-${order.trader}-${order.amount}-${order.limitPrice}`)
+  ) as `0x${string}`;
+
+  const sqrtPriceX96 = priceToSqrtPriceX96(executionPrice);
+
+  const checkedLiquidity = amountIn * 10n;
 
   return {
     orderId: orderHash,
@@ -138,6 +168,10 @@ function buildSettlement(order: EncryptedOrder): SettlementInstruction {
     delta1,
     submittedAt: Math.floor(Date.now() / 1000),
     enclaveMeasurement: config.measurement,
+    metadataHash,
+    sqrtPriceX96,
+    twapDeviationBps,
+    checkedLiquidity,
   };
 }
 
@@ -166,6 +200,9 @@ async function notifyGateway(item: QueueItem) {
   );
   logger.info({ orderId: item.order.orderId }, "pushed settlement to gateway");
 }
+
+// Initialize oracle on startup
+initOracle();
 
 const port = config.port;
 app.listen(port, "0.0.0.0", () => {

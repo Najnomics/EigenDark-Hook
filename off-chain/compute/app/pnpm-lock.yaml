@@ -8,6 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@pythnetwork/hermes-client':
+        specifier: ^2.1.0
+        version: 2.1.0(axios@1.13.2)
+      '@pythnetwork/price-service-client':
+        specifier: ^1.10.0
+        version: 1.10.0
+      '@pythnetwork/pyth-evm-js':
+        specifier: ^2.0.0
+        version: 2.0.0(axios@1.13.2)(typescript@5.9.3)(zod@4.1.13)
       axios:
         specifier: ^1.13.2
         version: 1.13.2
@@ -80,6 +89,23 @@ packages:
   '@pinojs/redact@0.4.0':
     resolution: {integrity: sha512-k2ENnmBugE/rzQfEcdWHcCY+/FM3VLzH9cYEsbdsoqrvzAKRhUZeRNhAZvB8OitQJ1TBed3yqWtdjzS6wJKBwg==}
 
+  '@pythnetwork/hermes-client@2.1.0':
+    resolution: {integrity: sha512-XOtP5dvHfKNl+uvFzXCMI9OL7VdJ8eXsv5ahy6ZB3ArZ+UMM4U4OrPYQPwLvJwlpkBXpEqsJKlMawcoyCB+yMA==}
+    engines: {node: '>=22.14.0'}
+
+  '@pythnetwork/price-service-client@1.10.0':
+    resolution: {integrity: sha512-wcPGDMmhjcbGbZ07SDR2h4DJSF9HU6rDi7nsJAbSFxYYgFRaXsZNeLFTWsu30xJm8JfU4AxK5B79C0TwobPMOA==}
+    engines: {node: '>=22.14.0'}
+    deprecated: This package is deprecated and is no longer maintained. Please use @pythnetwork/hermes-client instead.
+
+  '@pythnetwork/price-service-sdk@1.9.0':
+    resolution: {integrity: sha512-DX8N4VUqllyervqnCx/Z6Tjz130EcoczYYa96F1YjlbZf0rFyU8VCzX1yAf60q+b8EVcVFVeSkdzJTZD3n6+jQ==}
+    engines: {node: '>=22.14.0'}
+
+  '@pythnetwork/pyth-evm-js@2.0.0':
+    resolution: {integrity: sha512-MgGO+QPJu7HWqkQgF/jzNBeXCcl/A7jVaFUMLXZw+Qyb5727QbRKPSy9Y6RFDDP4HYf0EyMG85jt9P+ZN1OrDg==}
+    engines: {node: '>=22.14.0'}
+
   '@scure/base@1.2.6':
     resolution: {integrity: sha512-g/nm5FgUa//MCj1gV09zTJTaM6KBAHqLN907YVQqf7zC49+DcO4B1so4ZX07Ef10Twr6nuqYEH9GEggFXA4Fmg==}
 
@@ -137,6 +163,15 @@ packages:
   '@types/serve-static@1.15.10':
     resolution: {integrity: sha512-tRs1dB+g8Itk72rlSI2ZrW6vZg0YrLI81iQSTkMmOqnqCaNr/8Ek4VwWcN5vZgCYWbg/JJSGBlUaYGAOP73qBw==}
 
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+
+  '@zodios/core@10.9.6':
+    resolution: {integrity: sha512-aH4rOdb3AcezN7ws8vDgBfGboZMk2JGGzEq/DtW65MhnRxyTGRuLJRWVQ/2KxDgWvV2F5oTkAS+5pnjKbl0n+A==}
+    peerDependencies:
+      axios: ^0.x || ^1.0.0
+      zod: ^3.x
+
   abitype@1.1.0:
     resolution: {integrity: sha512-6Vh4HcRxNMLA0puzPjM5GBgT4aAcFGKZzSgAXvuZ27shJP6NEpielTuqbBmZILR5/xd0PizkBGy5hReKz9jl5A==}
     peerDependencies:
@@ -175,6 +210,11 @@ packages:
     resolution: {integrity: sha512-kNOjDqAh7px0XWNI+4QbzoiR/nTkHAWNud2uvnJquD1/x5a7EQZMJT0AczqK0Qn67oY/TTQ1LbUKajZpp3I9tQ==}
     engines: {node: '>=8.0.0'}
 
+  axios-retry@4.5.0:
+    resolution: {integrity: sha512-aR99oXhpEDGo0UuAlYcn2iGRds30k366Zfa05XWScR9QaQD4JYiP3/1Qt1u7YlefUOK+cn0CcwoL1oefavQUlQ==}
+    peerDependencies:
+      axios: 0.x || 1.x
+
   axios@1.13.2:
     resolution: {integrity: sha512-VPk9ebNqPcy5lRGuSlKx752IlDatOjT9paPlm8A7yOuW2Fbvp4X3JznJtT4f0GzGLLiWE9W8onz51SqLYwzGaA==}
 
@@ -184,6 +224,9 @@ packages:
   binary-extensions@2.3.0:
     resolution: {integrity: sha512-Ceh+7ox5qe7LJuLHoY0feh3pHuUDHAcRUeyL2VYghZwfpkNIy/+8Ocg0a3UuSoYzavmylwuLWQOf3hl0jjMMIw==}
     engines: {node: '>=8'}
+
+  bn.js@5.2.2:
+    resolution: {integrity: sha512-v2YAxEmKaBLahNwE1mjp4WON6huMNeuDvagFZW+ASCuA/ku0bXR9hSMw0XpiqMoA3+rmnyck/tPRSFQkoC9Cuw==}
 
   body-parser@2.2.1:
     resolution: {integrity: sha512-nfDwkulwiZYQIGwxdy0RUmowMhKcFVcYXUU7m4QlKYim1rUtg83xm2yjZ40QjDuc291AJjjeSc9b++AWHSgSHw==}
@@ -300,6 +343,14 @@ packages:
   eventemitter3@5.0.1:
     resolution: {integrity: sha512-GWkBvjiSZK87ELrYOSESUYeVIc9mvLLf/nXalMOS5dYrgZq9o5OVkbZAVM06CVxYsCwH9BDZFPlQTlPA1j4ahA==}
 
+  eventsource-parser@3.0.6:
+    resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
+    engines: {node: '>=18.0.0'}
+
+  eventsource@3.0.7:
+    resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
+    engines: {node: '>=18.0.0'}
+
   express@5.1.0:
     resolution: {integrity: sha512-DT9ck5YIRU+8GYzzU5kT3eHGA5iL+1Zd0EutOmTE9Dtk+Tvuzd23VBU+ec7HPNSTxXYO55gPV/hq4pSBJDjFpA==}
     engines: {node: '>= 18'}
@@ -409,6 +460,15 @@ packages:
 
   is-promise@4.0.0:
     resolution: {integrity: sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ==}
+
+  is-retry-allowed@2.2.0:
+    resolution: {integrity: sha512-XVm7LOeLpTW4jV19QSH38vkswxoLud8sQ57YwJVTPWdiaI9I8keEhGFpBlslyVsgdQy4Opg8QOLb8YRgsyZiQg==}
+    engines: {node: '>=10'}
+
+  isomorphic-ws@4.0.1:
+    resolution: {integrity: sha512-BhBvN2MBpWTaSHdWRb/bwdZJ1WaehQ2L1KngkCkfLUGF0mAWAT1sQUQacEmQ0jXkFw/czDXPNQSL5u2/Krsz1w==}
+    peerDependencies:
+      ws: '*'
 
   isows@1.0.7:
     resolution: {integrity: sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==}
@@ -622,6 +682,9 @@ packages:
     resolution: {integrity: sha512-r0eojU4bI8MnHr8c5bNo7lJDdI2qXlWWJk6a9EAFG7vbhTjElYhBVS3/miuE0uOuoLdb8Mc/rVfsmm6eo5o9GA==}
     hasBin: true
 
+  ts-log@2.2.7:
+    resolution: {integrity: sha512-320x5Ggei84AxzlXp91QkIGSw5wgaLT6GeAH0KsqDmRZdVWW2OiSeVvElVoatk3f7nicwXlElXsoFkARiGE2yg==}
+
   ts-node@10.9.2:
     resolution: {integrity: sha512-f0FFpIdcHgn8zcPSbf1dRevwt047YMnaiJM3u2w2RewrB+fob/zePZcrOyQoLMMO7aBIddLcQIEK5dYjkLnGrQ==}
     hasBin: true
@@ -693,6 +756,9 @@ packages:
     resolution: {integrity: sha512-Ux4ygGWsu2c7isFWe8Yu1YluJmqVhxqK2cLXNQA5AcC3QfbGNpM7fu0Y8b/z16pXLnFxZYvWhd3fhBY9DLmC6Q==}
     engines: {node: '>=6'}
 
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
   zod@4.1.13:
     resolution: {integrity: sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==}
 
@@ -722,6 +788,43 @@ snapshots:
   '@noble/hashes@1.8.0': {}
 
   '@pinojs/redact@0.4.0': {}
+
+  '@pythnetwork/hermes-client@2.1.0(axios@1.13.2)':
+    dependencies:
+      '@zodios/core': 10.9.6(axios@1.13.2)(zod@3.25.76)
+      eventsource: 3.0.7
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - axios
+
+  '@pythnetwork/price-service-client@1.10.0':
+    dependencies:
+      '@pythnetwork/price-service-sdk': 1.9.0
+      '@types/ws': 8.18.1
+      axios: 1.13.2
+      axios-retry: 4.5.0(axios@1.13.2)
+      isomorphic-ws: 4.0.1(ws@8.18.3)
+      ts-log: 2.2.7
+      ws: 8.18.3
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - utf-8-validate
+
+  '@pythnetwork/price-service-sdk@1.9.0':
+    dependencies:
+      bn.js: 5.2.2
+
+  '@pythnetwork/pyth-evm-js@2.0.0(axios@1.13.2)(typescript@5.9.3)(zod@4.1.13)':
+    dependencies:
+      '@pythnetwork/hermes-client': 2.1.0(axios@1.13.2)
+      viem: 2.40.3(typescript@5.9.3)(zod@4.1.13)
+    transitivePeerDependencies:
+      - axios
+      - bufferutil
+      - typescript
+      - utf-8-validate
+      - zod
 
   '@scure/base@1.2.6': {}
 
@@ -793,6 +896,15 @@ snapshots:
       '@types/node': 24.10.1
       '@types/send': 0.17.6
 
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 24.10.1
+
+  '@zodios/core@10.9.6(axios@1.13.2)(zod@3.25.76)':
+    dependencies:
+      axios: 1.13.2
+      zod: 3.25.76
+
   abitype@1.1.0(typescript@5.9.3)(zod@4.1.13):
     optionalDependencies:
       typescript: 5.9.3
@@ -820,6 +932,11 @@ snapshots:
 
   atomic-sleep@1.0.0: {}
 
+  axios-retry@4.5.0(axios@1.13.2):
+    dependencies:
+      axios: 1.13.2
+      is-retry-allowed: 2.2.0
+
   axios@1.13.2:
     dependencies:
       follow-redirects: 1.15.11
@@ -831,6 +948,8 @@ snapshots:
   balanced-match@1.0.2: {}
 
   binary-extensions@2.3.0: {}
+
+  bn.js@5.2.2: {}
 
   body-parser@2.2.1:
     dependencies:
@@ -939,6 +1058,12 @@ snapshots:
   etag@1.8.1: {}
 
   eventemitter3@5.0.1: {}
+
+  eventsource-parser@3.0.6: {}
+
+  eventsource@3.0.7:
+    dependencies:
+      eventsource-parser: 3.0.6
 
   express@5.1.0:
     dependencies:
@@ -1073,6 +1198,12 @@ snapshots:
   is-number@7.0.0: {}
 
   is-promise@4.0.0: {}
+
+  is-retry-allowed@2.2.0: {}
+
+  isomorphic-ws@4.0.1(ws@8.18.3):
+    dependencies:
+      ws: 8.18.3
 
   isows@1.0.7(ws@8.18.3):
     dependencies:
@@ -1305,6 +1436,8 @@ snapshots:
 
   touch@3.1.1: {}
 
+  ts-log@2.2.7: {}
+
   ts-node@10.9.2(@types/node@24.10.1)(typescript@5.9.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
@@ -1365,5 +1498,7 @@ snapshots:
   ws@8.18.3: {}
 
   yn@3.1.1: {}
+
+  zod@3.25.76: {}
 
   zod@4.1.13: {}

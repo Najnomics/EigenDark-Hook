@@ -22,6 +22,10 @@ const settlementTypes = {
     { name: "delta1", type: "int128" },
     { name: "submittedAt", type: "uint64" },
     { name: "enclaveMeasurement", type: "bytes32" },
+    { name: "metadataHash", type: "bytes32" },
+    { name: "sqrtPriceX96", type: "uint160" },
+    { name: "twapDeviationBps", type: "uint64" },
+    { name: "checkedLiquidity", type: "uint128" },
   ],
 };
 
@@ -38,7 +42,19 @@ export async function signSettlement(settlement: SettlementInstruction): Promise
     domain,
     types: settlementTypes,
     primaryType: "Settlement",
-    message: settlement,
+    message: {
+      orderId: settlement.orderId,
+      poolId: settlement.poolId,
+      trader: settlement.trader,
+      delta0: settlement.delta0,
+      delta1: settlement.delta1,
+      submittedAt: BigInt(settlement.submittedAt),
+      enclaveMeasurement: settlement.enclaveMeasurement,
+      metadataHash: settlement.metadataHash,
+      sqrtPriceX96: settlement.sqrtPriceX96,
+      twapDeviationBps: BigInt(settlement.twapDeviationBps),
+      checkedLiquidity: settlement.checkedLiquidity,
+    },
   });
 
   return {
