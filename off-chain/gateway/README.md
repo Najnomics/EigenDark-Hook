@@ -27,6 +27,7 @@ COMPUTE_WEBHOOK_KEY=dev-hook
 API_KEY=dev
 GATEWAY_DATA_DIR=./data
 SETTLEMENT_RETRY_MS=30000
+CLIENT_API_KEY=dev-client
 ```
 
 ## Scripts
@@ -37,7 +38,8 @@ SETTLEMENT_RETRY_MS=30000
 
 ## Flow
 
-1. Clients `POST /orders` with an encrypted payload + metadata.
+1. Clients `POST /orders` with an encrypted payload + metadata, including the `x-api-key`
+   header matching `CLIENT_API_KEY` when configured.
 2. Gateway validates input and forwards it to the EigenCompute app (`EIGEN_COMPUTE_URL`).
 3. The compute service performs private execution and calls back `POST /settlements`
    with a signed settlement + attestation. The gateway verifies the EIP-712 signature,

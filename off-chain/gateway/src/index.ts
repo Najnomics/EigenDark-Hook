@@ -14,6 +14,7 @@ import {
   upsertSettlement,
 } from "./settlementStore.js";
 import { startRetryWorker } from "./retryWorker.js";
+import { requireClientAuth } from "./auth.js";
 
 const app = express();
 app.use(express.json());
@@ -54,7 +55,7 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
 });
 
-app.post("/orders", async (req, res) => {
+app.post("/orders", requireClientAuth, async (req, res) => {
   const parsed = orderSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
