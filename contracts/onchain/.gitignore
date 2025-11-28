@@ -4,4 +4,5 @@ cache/
 broadcast/
 .forge-snapshots/
 coverage/
+.env
 
