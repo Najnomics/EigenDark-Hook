@@ -397,6 +397,51 @@ Cost (on $20M trade):
 
 ## 🏗️ Technical Architecture
 
+### **System Architecture Overview**
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        CLI[Trader CLI/SDK]
+        LP[Liquidity Provider]
+    end
+    
+    subgraph "Gateway Layer"
+        GW[Order Gateway API]
+        AUTH[Authentication]
+        QUEUE[Order Queue]
+    end
+    
+    subgraph "EigenCompute TEE"
+        TEE[Secure Enclave]
+        ENC[Encrypted State]
+        ATTEST[Attestation Signer]
+        ORACLE[Pyth Oracle Client]
+    end
+    
+    subgraph "On-Chain Layer"
+        HOOK[EigenDarkHook]
+        VAULT[EigenDarkVault]
+        PM[Uniswap V4 PoolManager]
+    end
+    
+    CLI -->|Encrypted Order| GW
+    LP -->|Deposit Tokens| VAULT
+    GW -->|Forward Order| TEE
+    TEE -->|Decrypt & Process| ENC
+    TEE -->|Fetch Price| ORACLE
+    TEE -->|Sign Settlement| ATTEST
+    ATTEST -->|EIP-712 Signature| HOOK
+    HOOK -->|Verify & Execute| VAULT
+    VAULT -->|Token Transfers| CLI
+    HOOK -.->|Hook Callbacks| PM
+    
+    style TEE fill:#9333ea
+    style HOOK fill:#3b82f6
+    style VAULT fill:#10b981
+    style ENC fill:#f59e0b
+```
+
 ### **Core Components**
 
 #### **1. EigenDark Hook Contract**
@@ -431,41 +476,253 @@ Cost (on $20M trade):
 - Coordinates token transfers
 - Updates on-chain state
 
+### **Complete Order Flow**
+
+```mermaid
+sequenceDiagram
+    participant T as Trader
+    participant CLI as CLI/SDK
+    participant GW as Gateway
+    participant TEE as EigenCompute TEE
+    participant PYTH as Pyth Oracle
+    participant HOOK as EigenDarkHook
+    participant VAULT as EigenDarkVault
+    participant PM as PoolManager
+    
+    T->>CLI: Create order (amount, price, direction)
+    CLI->>CLI: Encrypt order with TEE pubkey
+    CLI->>GW: POST /orders (encrypted payload)
+    GW->>GW: Validate & authenticate
+    GW->>TEE: Forward encrypted order
+    TEE->>TEE: Decrypt order
+    TEE->>TEE: Decrypt vault reserves
+    TEE->>PYTH: Fetch TWAP price
+    PYTH-->>TEE: Price data
+    TEE->>TEE: Verify limit price ≤ TWAP
+    TEE->>TEE: Check sufficient liquidity
+    TEE->>TEE: Calculate execution (delta0, delta1)
+    TEE->>TEE: Build settlement struct
+    TEE->>TEE: Sign with EIP-712
+    TEE->>GW: Settlement + attestation
+    GW->>GW: Verify signature
+    GW->>HOOK: registerSettlement(settlement, signature)
+    HOOK->>HOOK: Verify attestor signature
+    HOOK->>HOOK: Check pool config
+    HOOK->>HOOK: Validate TWAP deviation
+    HOOK->>HOOK: Check liquidity limits
+    HOOK->>HOOK: Mark order as settled
+    HOOK->>VAULT: applySettlement(poolId, trader, delta0, delta1)
+    VAULT->>VAULT: Update token balances
+    VAULT->>T: Transfer tokens (delta > 0)
+    T->>VAULT: Transfer tokens (delta < 0)
+    VAULT-->>HOOK: Settlement applied
+    HOOK->>HOOK: Emit SettlementRecorded event
+    HOOK-->>GW: Success
+    GW-->>CLI: Settlement confirmed
+    CLI-->>T: Trade completed
+```
+
+### **Hook Method Interactions**
+
+```mermaid
+graph LR
+    subgraph "Uniswap V4 PoolManager"
+        PM[PoolManager]
+    end
+    
+    subgraph "EigenDarkHook Methods"
+        BS[beforeSwap]
+        AS[afterSwap]
+        BAL[beforeAddLiquidity]
+        BRL[beforeRemoveLiquidity]
+        RS[registerSettlement]
+    end
+    
+    subgraph "EigenDarkVault Methods"
+        DEP[deposit]
+        WTH[withdraw]
+        ASET[applySettlement]
+    end
+    
+    PM -->|Swap Attempt| BS
+    BS -->|Revert| PM
+    PM -->|After Swap| AS
+    AS -->|Revert| PM
+    PM -->|Add Liquidity| BAL
+    BAL -->|Revert| PM
+    PM -->|Remove Liquidity| BRL
+    BRL -->|Revert| PM
+    
+    RS -->|Verify Attestation| RS
+    RS -->|Execute Settlement| ASET
+    ASET -->|Token Transfers| ASET
+    
+    style BS fill:#ef4444
+    style AS fill:#ef4444
+    style BAL fill:#ef4444
+    style BRL fill:#ef4444
+    style RS fill:#10b981
+    style ASET fill:#3b82f6
+```
+
+### **Settlement Verification Flow**
+
+```mermaid
+flowchart TD
+    START[Gateway receives Settlement] --> VERIFY1{Verify EIP-712 Signature}
+    VERIFY1 -->|Invalid| REJECT1[Reject Settlement]
+    VERIFY1 -->|Valid| CHECK1{Order Already Settled?}
+    CHECK1 -->|Yes| REJECT2[Reject: OrderAlreadySettled]
+    CHECK1 -->|No| CHECK2{Settlements Paused?}
+    CHECK2 -->|Yes| REJECT3[Reject: SettlementsPaused]
+    CHECK2 -->|No| CHECK3{Pool Configured?}
+    CHECK3 -->|No| REJECT4[Reject: PoolNotConfigured]
+    CHECK3 -->|Yes| CHECK4{Pool Settlements Paused?}
+    CHECK4 -->|Yes| REJECT5[Reject: PoolSettlementsPaused]
+    CHECK4 -->|No| CHECK5{Attestation Window Valid?}
+    CHECK5 -->|Stale| REJECT6[Reject: StaleAttestation]
+    CHECK5 -->|Valid| CHECK6{Measurement Match?}
+    CHECK6 -->|No| REJECT7[Reject: InvalidMeasurement]
+    CHECK6 -->|Yes| CHECK7{Delta Limits OK?}
+    CHECK7 -->|Exceeded| REJECT8[Reject: DeltaLimitExceeded]
+    CHECK7 -->|OK| CHECK8{TWAP Deviation OK?}
+    CHECK8 -->|Exceeded| REJECT9[Reject: TwapDeviationExceeded]
+    CHECK8 -->|OK| CHECK9{Min Liquidity Met?}
+    CHECK9 -->|No| REJECT10[Reject: InsufficientCheckedLiquidity]
+    CHECK9 -->|Yes| EXECUTE[Execute Settlement]
+    EXECUTE --> VAULT[Call vault.applySettlement]
+    VAULT --> TRANSFER[Transfer Tokens]
+    TRANSFER --> EMIT[Emit Events]
+    EMIT --> SUCCESS[Settlement Complete]
+    
+    style START fill:#3b82f6
+    style EXECUTE fill:#10b981
+    style SUCCESS fill:#10b981
+    style REJECT1 fill:#ef4444
+    style REJECT2 fill:#ef4444
+    style REJECT3 fill:#ef4444
+    style REJECT4 fill:#ef4444
+    style REJECT5 fill:#ef4444
+    style REJECT6 fill:#ef4444
+    style REJECT7 fill:#ef4444
+    style REJECT8 fill:#ef4444
+    style REJECT9 fill:#ef4444
+    style REJECT10 fill:#ef4444
+```
+
+### **System Component Interactions**
+
+```mermaid
+graph TB
+    subgraph "Off-Chain Components"
+        CLI[Client CLI/SDK]
+        GW[Gateway Service]
+        TEE[EigenCompute TEE]
+    end
+    
+    subgraph "On-Chain Contracts"
+        HOOK[EigenDarkHook]
+        VAULT[EigenDarkVault]
+        PM[PoolManager]
+    end
+    
+    subgraph "External Services"
+        PYTH[Pyth Oracle]
+        RPC[Ethereum RPC]
+    end
+    
+    CLI <-->|Encrypted Orders| GW
+    GW <-->|Order Processing| TEE
+    TEE <-->|Price Data| PYTH
+    TEE -->|Settlement Proof| GW
+    GW -->|registerSettlement| HOOK
+    HOOK -->|applySettlement| VAULT
+    VAULT <-->|Token Transfers| CLI
+    HOOK -.->|Hook Callbacks| PM
+    GW <-->|Read State| RPC
+    HOOK <-->|Read/Write| RPC
+    VAULT <-->|Read/Write| RPC
+    
+    style TEE fill:#9333ea
+    style HOOK fill:#3b82f6
+    style VAULT fill:#10b981
+    style GW fill:#f59e0b
+```
+
 ### **Data Flow Diagram**
 
+```mermaid
+flowchart LR
+    subgraph "Input Data"
+        ORDER[Order Request<br/>tokenIn, tokenOut, amount, limitPrice]
+        DEPOSIT[LP Deposit<br/>amount0, amount1]
+    end
+    
+    subgraph "Encryption Layer"
+        ENC1[Encrypt Order]
+        ENC2[Encrypt Reserves]
+    end
+    
+    subgraph "TEE Processing"
+        DECRYPT[Decrypt & Process]
+        PRICE[Fetch TWAP]
+        CALC[Calculate Execution]
+        SIGN[Sign Settlement]
+    end
+    
+    subgraph "On-Chain State"
+        SETTLEMENT[Settlement Struct]
+        BALANCES[Vault Balances]
+        EVENTS[Events]
+    end
+    
+    ORDER --> ENC1
+    DEPOSIT --> ENC2
+    ENC1 --> DECRYPT
+    ENC2 --> DECRYPT
+    DECRYPT --> PRICE
+    PRICE --> CALC
+    CALC --> SIGN
+    SIGN --> SETTLEMENT
+    SETTLEMENT --> BALANCES
+    BALANCES --> EVENTS
+    
+    style ENC1 fill:#f59e0b
+    style ENC2 fill:#f59e0b
+    style DECRYPT fill:#9333ea
+    style SIGN fill:#10b981
+    style SETTLEMENT fill:#3b82f6
 ```
-┌─────────────────┐
-│   Trader CLI    │ Encrypts order with TEE pubkey
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  Order Gateway  │ Validates & queues encrypted orders
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────────────────────────┐
-│     EigenCompute TEE Enclave        │
-│  ┌───────────────────────────────┐  │
-│  │ 1. Decrypt order              │  │
-│  │ 2. Decrypt vault reserves     │  │
-│  │ 3. Fetch TWAP from Pyth       │  │
-│  │ 4. Verify liquidity           │  │
-│  │ 5. Calculate execution        │  │
-│  │ 6. Update encrypted state     │  │
-│  │ 7. Sign attestation           │  │
-│  └───────────────────────────────┘  │
-└────────┬────────────────────────────┘
-         │
-         ▼
-┌─────────────────┐
-│  EigenDark Hook │ Verifies attestation
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   Settlement    │ On-chain token transfers
-└─────────────────┘
+
+### **Hook Permission Flow**
+
+```mermaid
+stateDiagram-v2
+    [*] --> PublicSwapAttempt
+    PublicSwapAttempt --> beforeSwap: Hook Called
+    beforeSwap --> RevertDirectSwap: Always
+    RevertDirectSwap --> [*]
+    
+    [*] --> PublicLiquidityAttempt
+    PublicLiquidityAttempt --> beforeAddLiquidity: Hook Called
+    beforeAddLiquidity --> RevertPublicLiquidity: Always
+    RevertPublicLiquidity --> [*]
+    
+    [*] --> SettlementSubmission
+    SettlementSubmission --> registerSettlement: Gateway Calls
+    registerSettlement --> VerifyAttestation: Check Signature
+    VerifyAttestation --> VerifyPoolConfig: Valid Attestor
+    VerifyPoolConfig --> VerifyLimits: Pool Enabled
+    VerifyLimits --> ExecuteSettlement: All Checks Pass
+    ExecuteSettlement --> CallVault: Settlement Valid
+    CallVault --> TransferTokens: Update Balances
+    TransferTokens --> EmitEvents: Complete
+    EmitEvents --> [*]
+    
+    VerifyAttestation --> RejectSettlement: Invalid
+    VerifyPoolConfig --> RejectSettlement: Not Configured
+    VerifyLimits --> RejectSettlement: Limits Exceeded
+    RejectSettlement --> [*]
 ```
 
 ---
