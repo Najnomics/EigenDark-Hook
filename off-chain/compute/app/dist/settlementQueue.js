@@ -1,8 +1,15 @@
 import { randomUUID } from "crypto";
 export class SettlementQueue {
+    capacity;
     items = new Map();
     listeners = [];
+    constructor(capacity = Infinity) {
+        this.capacity = capacity;
+    }
     enqueue(order) {
+        if (this.items.size >= this.capacity) {
+            throw new Error("order queue at capacity");
+        }
         const entry = {
             order: {
                 ...order,
@@ -40,6 +47,16 @@ export class SettlementQueue {
     }
     get(orderId) {
         return this.items.get(orderId);
+    }
+    size() {
+        return this.items.size;
+    }
+    stats() {
+        const summary = { queued: 0, processing: 0, settled: 0, failed: 0 };
+        for (const item of this.items.values()) {
+            summary[item.status] += 1;
+        }
+        return summary;
     }
     onChange(listener) {
         this.listeners.push(listener);

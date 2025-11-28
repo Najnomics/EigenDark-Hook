@@ -1,18 +1,56 @@
 import "dotenv/config";
-function requireEnv(key) {
-    const value = process.env[key];
-    if (!value) {
-        throw new Error(`Missing required environment variable ${key}`);
+import { z } from "zod";
+const address = () => z.string().regex(/^0x[0-9a-fA-F]{40}$/, "invalid address");
+const bytes32 = () => z.string().regex(/^0x[0-9a-fA-F]{64}$/, "invalid bytes32");
+const privateKey = () => z.string().regex(/^0x[0-9a-fA-F]{64}$/, "invalid private key");
+const envSchema = z.object({
+    PORT: z.coerce.number().int().default(8080),
+    CHAIN_ID: z.coerce.number().int(),
+    HOOK_ADDRESS: address(),
+    VAULT_ADDRESS: address(),
+    ATTESTATION_MEASUREMENT: bytes32(),
+    ATTESTOR_PRIVATE_KEY: privateKey(),
+    GATEWAY_WEBHOOK_URL: z.string().url(),
+    GATEWAY_API_KEY: z.string().optional(),
+    ORDER_API_KEY: z.string().optional(),
+    MAX_PENDING_ORDERS: z.coerce.number().int().positive().default(500),
+    GATEWAY_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
+    LOG_LEVEL: z.string().optional(),
+    PYTH_ENDPOINT: z.string().url().optional(),
+    PYTH_TWAP_WINDOW: z.coerce.number().int().positive().max(600).optional(),
+    PYTH_PRICE_IDS: z.string().optional(),
+});
+function parsePriceIdMap(raw) {
+    if (!raw)
+        return {};
+    try {
+        const parsed = JSON.parse(raw);
+        const normalized = {};
+        for (const [key, value] of Object.entries(parsed)) {
+            normalized[key.toLowerCase()] = value;
+        }
+        return normalized;
     }
-    return value;
+    catch (error) {
+        console.warn("Failed to parse PYTH_PRICE_IDS:", error.message);
+        return {};
+    }
 }
+const parsed = envSchema.parse(process.env);
 export const config = {
-    port: Number(process.env.PORT ?? 8080),
-    chainId: Number(process.env.CHAIN_ID ?? 11155111),
-    hookAddress: requireEnv("HOOK_ADDRESS"),
-    vaultAddress: requireEnv("VAULT_ADDRESS"),
-    measurement: requireEnv("ATTESTATION_MEASUREMENT"),
-    attestorKey: requireEnv("ATTESTOR_PRIVATE_KEY"),
-    gatewayWebhookUrl: requireEnv("GATEWAY_WEBHOOK_URL"),
-    gatewayApiKey: process.env.GATEWAY_API_KEY ?? "",
+    port: parsed.PORT,
+    chainId: parsed.CHAIN_ID,
+    hookAddress: parsed.HOOK_ADDRESS,
+    vaultAddress: parsed.VAULT_ADDRESS,
+    measurement: parsed.ATTESTATION_MEASUREMENT,
+    attestorKey: parsed.ATTESTOR_PRIVATE_KEY,
+    gatewayWebhookUrl: parsed.GATEWAY_WEBHOOK_URL,
+    gatewayApiKey: parsed.GATEWAY_API_KEY ?? "",
+    orderApiKey: parsed.ORDER_API_KEY ?? "",
+    maxPendingOrders: parsed.MAX_PENDING_ORDERS,
+    gatewayTimeoutMs: parsed.GATEWAY_TIMEOUT_MS,
+    logLevel: parsed.LOG_LEVEL ?? "info",
+    pythEndpoint: parsed.PYTH_ENDPOINT ?? undefined,
+    pythTwapWindow: parsed.PYTH_TWAP_WINDOW ?? 300,
+    pythPriceIds: parsePriceIdMap(parsed.PYTH_PRICE_IDS),
 };

@@ -5,22 +5,51 @@ import { keccak256, stringToHex, parseUnits } from "viem";
 import { config } from "./config.js";
 import { SettlementQueue } from "./settlementQueue.js";
 import { signSettlement } from "./attestation.js";
+import { logger } from "./logger.js";
+import { attachRequestId } from "./requestContext.js";
+import { requireGatewayAuth } from "./auth.js";
+import { initOracle, fetchOraclePrice, calculateTwapDeviation, priceToSqrtPriceX96 } from "./oracle.js";
 const app = express();
-const queue = new SettlementQueue();
-app.use(express.json());
-const orderSchema = z.object({
-    trader: z.string().min(1),
-    tokenIn: z.string().min(1),
-    tokenOut: z.string().min(1),
-    amount: z.string().min(1),
-    limitPrice: z.string().min(1),
+const queue = new SettlementQueue(config.maxPendingOrders);
+app.use(express.json({ limit: "1mb" }));
+app.use(attachRequestId);
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on("finish", () => {
+        logger.info({
+            reqId: req.requestId,
+            method: req.method,
+            path: req.path,
+            status: res.statusCode,
+            durationMs: Date.now() - start,
+        }, "request completed");
+    });
+    next();
+});
+const address = z.string().regex(/^0x[0-9a-fA-F]{40}$/, "invalid address");
+const decimalString = z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, "must be a positive decimal string")
+    .refine((val) => Number(val) > 0, "value must be positive");
+const orderSchema = z
+    .object({
+    trader: address,
+    tokenIn: address,
+    tokenOut: address,
+    amount: decimalString,
+    limitPrice: decimalString,
     payload: z.string().min(1),
+})
+    .refine((order) => order.tokenIn.toLowerCase() !== order.tokenOut.toLowerCase(), {
+    message: "tokenIn and tokenOut must differ",
+    path: ["tokenOut"],
 });
 app.get("/health", (_req, res) => {
     res.json({
         status: "ok",
         measurement: config.measurement,
         hook: config.hookAddress,
+        pendingOrders: queue.size(),
         timestamp: Date.now(),
     });
 });
@@ -31,46 +60,83 @@ app.get("/orders/:orderId", (req, res) => {
     }
     res.json(order);
 });
-app.post("/orders", async (req, res) => {
+app.get("/metrics", (_req, res) => {
+    const stats = queue.stats();
+    res.json({
+        pending: queue.size(),
+        stats,
+    });
+});
+app.post("/orders", requireGatewayAuth, async (req, res) => {
     const parsed = orderSchema.safeParse(req.body);
     if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.flatten() });
     }
+    if (queue.size() >= config.maxPendingOrders) {
+        logger.warn({ reqId: req.requestId }, "order queue at capacity");
+        return res.status(503).json({ error: "order_queue_full" });
+    }
     const entry = queue.enqueue(parsed.data);
     processOrder(entry.order).catch((err) => {
-        console.error("order processing failed", err);
-        queue.markFailed(entry.order.orderId, err.message);
+        const message = err.message;
+        logger.error({ orderId: entry.order.orderId, err: message }, "order processing failed");
+        queue.markFailed(entry.order.orderId, message);
     });
     res.status(202).json({ orderId: entry.order.orderId, status: entry.status });
 });
 queue.onChange((item) => {
+    logger.info({ orderId: item.order.orderId, status: item.status }, "queue status update");
     if (item.status === "settled" && item.settlement) {
         notifyGateway(item).catch((err) => {
-            console.error("failed to notify gateway", err);
+            logger.error({ orderId: item.order.orderId, err: err.message }, "failed to notify gateway");
         });
     }
 });
 async function processOrder(order) {
     queue.markProcessing(order.orderId);
-    // Placeholder for enclave execution (decrypt payload, fetch price, run risk checks)
-    await new Promise((resolve) => setTimeout(resolve, 250));
-    const settlement = buildSettlement(order);
-    const attestation = await signSettlement(settlement);
-    queue.markSettled(order.orderId, { settlement, attestation });
+    try {
+        const priceId = getPriceIdForPair(order.tokenIn, order.tokenOut);
+        const oraclePrice = priceId ? await fetchOraclePrice(priceId) : null;
+        const fallbackPrice = parseUnits(order.limitPrice, 18);
+        const executionPrice = oraclePrice?.price ?? fallbackPrice;
+        const twapPrice = oraclePrice?.twap ?? executionPrice;
+        const twapDeviationBps = oraclePrice ? calculateTwapDeviation(executionPrice, twapPrice) : 0;
+        const settlement = buildSettlement(order, executionPrice, twapPrice, twapDeviationBps);
+        const attestation = await signSettlement(settlement);
+        queue.markSettled(order.orderId, { settlement, attestation });
+    }
+    catch (error) {
+        const message = error.message;
+        logger.error({ orderId: order.orderId, err: message }, "order processing failed");
+        queue.markFailed(order.orderId, message);
+        throw error;
+    }
 }
-function buildSettlement(order) {
+function getPriceIdForPair(tokenIn, tokenOut) {
+    const pair = `${tokenIn.toLowerCase()}-${tokenOut.toLowerCase()}`;
+    return config.pythPriceIds[pair] ?? null;
+}
+function buildSettlement(order, executionPrice, twapPrice, twapDeviationBps) {
     const poolId = keccak256(stringToHex(`${order.tokenIn.toLowerCase()}-${order.tokenOut.toLowerCase()}`));
+    const orderHash = keccak256(stringToHex(order.orderId));
     const amountIn = parseUnits(order.amount, 18);
-    const price = parseUnits(order.limitPrice, 18);
     const delta0 = toInt128(-amountIn);
-    const delta1 = toInt128((amountIn * price) / 10n ** 18n);
+    const delta1 = toInt128((amountIn * executionPrice) / 10n ** 18n);
+    const metadataHash = keccak256(stringToHex(`${order.orderId}-${order.trader}-${order.amount}-${order.limitPrice}`));
+    const sqrtPriceX96 = priceToSqrtPriceX96(executionPrice);
+    const checkedLiquidity = amountIn * 10n;
     return {
-        orderId: order.orderId,
+        orderId: orderHash,
         poolId,
         trader: order.trader,
         delta0,
         delta1,
         submittedAt: Math.floor(Date.now() / 1000),
+        enclaveMeasurement: config.measurement,
+        metadataHash,
+        sqrtPriceX96,
+        twapDeviationBps,
+        checkedLiquidity,
     };
 }
 function toInt128(value) {
@@ -90,10 +156,13 @@ async function notifyGateway(item) {
         attestation: item.settlement.attestation,
     }, {
         headers: config.gatewayApiKey ? { "x-api-key": config.gatewayApiKey } : undefined,
-        timeout: 5_000,
+        timeout: config.gatewayTimeoutMs,
     });
+    logger.info({ orderId: item.order.orderId }, "pushed settlement to gateway");
 }
+// Initialize oracle on startup
+initOracle();
 const port = config.port;
 app.listen(port, "0.0.0.0", () => {
-    console.log(`EigenDark EigenCompute app listening on :${port} (measurement ${config.measurement})`);
+    logger.info({ port: config.port, measurement: config.measurement }, "EigenDark EigenCompute app listening");
 });
