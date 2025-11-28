@@ -6,7 +6,7 @@ This document tracks all deployed contracts for the EigenDark Hook project on Se
 
 - **Network**: Sepolia Testnet
 - **Chain ID**: `11155111`
-- **RPC URL**: `https://eth-sepolia.g.alchemy.com/v2/FlEUrYqZ9gYvgFxtEVA6zWB0zrQwGL4N`
+- **RPC URL**: Configure your own Alchemy/Infura endpoint (stored in `.env`)
 - **Explorer**: https://sepolia.etherscan.io
 
 ## Deployed Contracts
@@ -106,13 +106,18 @@ hook.configurePool(poolKey, poolConfig);
 Required environment variables for deployment (stored in `.env`):
 
 ```bash
-PRIVATE_KEY=885193e06bfcfbff6348f1b9caf486a18c2b927e66382223d7c1cafa9858bb72
-RPC_URL=https://eth-sepolia.g.alchemy.com/v2/FlEUrYqZ9gYvgFxtEVA6zWB0zrQwGL4N
+# Sensitive values - DO NOT commit to repository
+PRIVATE_KEY=<your_private_key>
+RPC_URL=<your_rpc_endpoint>
+ETHERSCAN_API_KEY=<your_etherscan_api_key>
+
+# Deployment addresses (safe to commit)
 EIGENDARK_VAULT=0xcEe7Afa935b01854d097C1f0AE6A8Cb886671B70
 EIGENDARK_HOOK=0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0
 POOL_MANAGER_ADDRESS=0x61b3f2011a92d183c7dbadbda940a7555ccf9227
-ETHERSCAN_API_KEY=PRPS7NDEPG461YQJ92AUEFSAKZIZT7EMWM
 ```
+
+**Note**: Sensitive values (private keys, API keys) should never be committed to the repository. Store them in `.env` which is gitignored.
 
 ## Quick Links
 
