@@ -52,18 +52,16 @@ echo ""
 echo "✅ Vault verified! View at: https://sepolia.etherscan.io/address/$EIGENDARK_VAULT#code"
 echo ""
 
-# For Hook, we need to get the pool manager address from the deployment
-# We can query it from the hook's storage or use AddressConstants
-# Let's get it from the RPC
-echo "Getting PoolManager address from chain..."
-POOL_MANAGER=$(cast call $EIGENDARK_HOOK "poolManager()(address)" --rpc-url $RPC_URL 2>/dev/null || echo "")
-
-if [ -z "$POOL_MANAGER" ] || [ "$POOL_MANAGER" == "0x0000000000000000000000000000000000000000" ]; then
-    echo "Could not get PoolManager from hook. Please set POOL_MANAGER_ADDRESS in .env"
-    echo "You can find it at: https://docs.uniswap.org/contracts/v4/reference/deployments"
-    if [ -z "$POOL_MANAGER_ADDRESS" ]; then
+# For Hook, use the provided pool manager address or try to get it from chain
+if [ -z "$POOL_MANAGER_ADDRESS" ]; then
+    echo "Getting PoolManager address from chain..."
+    POOL_MANAGER=$(cast call $EIGENDARK_HOOK "poolManager()(address)" --rpc-url $RPC_URL 2>/dev/null || echo "")
+    
+    if [ -z "$POOL_MANAGER" ] || [ "$POOL_MANAGER" == "0x0000000000000000000000000000000000000000" ]; then
+        echo "Error: Could not get PoolManager from hook and POOL_MANAGER_ADDRESS not set in .env"
         exit 1
     fi
+else
     POOL_MANAGER=$POOL_MANAGER_ADDRESS
 fi
 
@@ -73,13 +71,13 @@ echo ""
 # Verify Hook
 # Constructor: EigenDarkHook(IPoolManager _poolManager, Config memory cfg, address initialOwner, IEigenDarkVault _vault)
 # Config struct: {uint32 attestationWindow} = 3600 (1 hour in seconds)
+# Note: For a struct with a single field, we encode it directly as the uint32 value
 echo "Verifying EigenDarkHook..."
-# Note: For struct encoding, we need to encode it properly
-# The Config struct is just {uint32 attestationWindow}
+CONSTRUCTOR_ARGS=$(cast abi-encode "f(address,uint32,address,address)" $POOL_MANAGER 3600 $DEPLOYER $EIGENDARK_VAULT)
 forge verify-contract \
     $EIGENDARK_HOOK \
     EigenDarkHook \
-    --constructor-args $(cast abi-encode "constructor(address,(uint32),address,address)" $POOL_MANAGER 3600 $DEPLOYER $EIGENDARK_VAULT) \
+    --constructor-args $CONSTRUCTOR_ARGS \
     --chain sepolia \
     --etherscan-api-key $ETHERSCAN_API_KEY \
     --compiler-version 0.8.30 \
