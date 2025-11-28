@@ -120,8 +120,14 @@ function buildSettlement(order, executionPrice, twapPrice, twapDeviationBps) {
     const poolId = keccak256(stringToHex(`${order.tokenIn.toLowerCase()}-${order.tokenOut.toLowerCase()}`));
     const orderHash = keccak256(stringToHex(order.orderId));
     const amountIn = parseUnits(order.amount, 18);
+    // Calculate delta1 (amount out) with proper decimal handling
+    // executionPrice is already in 18 decimals, so we need to scale properly
+    // delta1 = (amountIn * executionPrice) / 10^18
+    // But we need to ensure it fits in int128
+    const amountOutRaw = (amountIn * executionPrice) / 10n ** 18n;
+    // Ensure values fit in int128 range
     const delta0 = toInt128(-amountIn);
-    const delta1 = toInt128((amountIn * executionPrice) / 10n ** 18n);
+    const delta1 = toInt128(amountOutRaw);
     const metadataHash = keccak256(stringToHex(`${order.orderId}-${order.trader}-${order.amount}-${order.limitPrice}`));
     const sqrtPriceX96 = priceToSqrtPriceX96(executionPrice);
     const checkedLiquidity = amountIn * 10n;
@@ -150,9 +156,24 @@ function toInt128(value) {
 async function notifyGateway(item) {
     if (!item.settlement)
         return;
+    // Serialize BigInt values to strings for JSON
+    const settlement = item.settlement.settlement;
+    const serializedSettlement = {
+        orderId: settlement.orderId,
+        poolId: settlement.poolId,
+        trader: settlement.trader,
+        delta0: settlement.delta0.toString(),
+        delta1: settlement.delta1.toString(),
+        submittedAt: settlement.submittedAt,
+        enclaveMeasurement: settlement.enclaveMeasurement,
+        metadataHash: settlement.metadataHash,
+        sqrtPriceX96: settlement.sqrtPriceX96.toString(),
+        twapDeviationBps: settlement.twapDeviationBps,
+        checkedLiquidity: settlement.checkedLiquidity.toString(),
+    };
     await axios.post(config.gatewayWebhookUrl, {
         orderId: item.order.orderId,
-        settlement: item.settlement.settlement,
+        settlement: serializedSettlement,
         attestation: item.settlement.attestation,
     }, {
         headers: config.gatewayApiKey ? { "x-api-key": config.gatewayApiKey } : undefined,
