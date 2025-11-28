@@ -9,7 +9,6 @@
  */
 
 import { privateKeyToAccount } from "viem/accounts";
-import { signMessage } from "viem";
 import axios, { AxiosInstance } from "axios";
 import { logger } from "./logger.js";
 
@@ -124,10 +123,7 @@ export class EigenAIClient {
   async signMessage(message: string): Promise<`0x${string}`> {
     try {
       const account = privateKeyToAccount(this.privateKey);
-      const signature = await signMessage({
-        account,
-        message,
-      });
+      const signature = await account.signMessage({ message });
       return signature;
     } catch (error) {
       logger.error({ err: (error as Error).message }, "Failed to sign message");
