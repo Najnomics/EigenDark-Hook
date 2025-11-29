@@ -171,12 +171,16 @@ async function notifyGateway(item) {
         twapDeviationBps: settlement.twapDeviationBps,
         checkedLiquidity: settlement.checkedLiquidity.toString(),
     };
+    const headers = {};
+    if (config.gatewayApiKey) {
+        headers["x-api-key"] = config.gatewayApiKey;
+    }
     await axios.post(config.gatewayWebhookUrl, {
         orderId: item.order.orderId,
         settlement: serializedSettlement,
         attestation: item.settlement.attestation,
     }, {
-        headers: config.gatewayApiKey ? { "x-api-key": config.gatewayApiKey } : undefined,
+        headers,
         timeout: config.gatewayTimeoutMs,
     });
     logger.info({ orderId: item.order.orderId }, "pushed settlement to gateway");

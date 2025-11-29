@@ -42,6 +42,7 @@ app.use((req, res, next) => {
 const computeClient = axios.create({
   baseURL: config.computeUrl,
   timeout: 5000,
+  headers: config.computeWebhookKey ? { "x-api-key": config.computeWebhookKey } : undefined,
 });
 
 const orderSchema = z.object({

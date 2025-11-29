@@ -17,8 +17,8 @@ export const config = {
   chainId: Number(process.env.CHAIN_ID ?? 11155111),
   hookAddress: requireEnv("HOOK_ADDRESS") as `0x${string}`,
   measurement: requireEnv("ATTESTATION_MEASUREMENT") as `0x${string}`,
-  rpcUrl: process.env.HOOK_RPC_URL,
-  submitterKey: process.env.HOOK_SUBMITTER_KEY,
+  rpcUrl: process.env.RPC_URL || process.env.HOOK_RPC_URL,
+  submitterKey: process.env.SUBMITTER_KEY || process.env.HOOK_SUBMITTER_KEY,
   storageDir: process.env.GATEWAY_DATA_DIR ?? path.resolve(process.cwd(), "data"),
   retryIntervalMs: Number(process.env.SETTLEMENT_RETRY_MS ?? 30_000),
 };

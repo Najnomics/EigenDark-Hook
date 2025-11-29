@@ -211,6 +211,11 @@ async function notifyGateway(item: QueueItem) {
     checkedLiquidity: settlement.checkedLiquidity.toString(),
   };
   
+  const headers: Record<string, string> = {};
+  if (config.gatewayApiKey) {
+    headers["x-api-key"] = config.gatewayApiKey;
+  }
+  
   await axios.post(
     config.gatewayWebhookUrl,
     {
@@ -219,7 +224,7 @@ async function notifyGateway(item: QueueItem) {
       attestation: item.settlement.attestation,
     },
     {
-      headers: config.gatewayApiKey ? { "x-api-key": config.gatewayApiKey } : undefined,
+      headers,
       timeout: config.gatewayTimeoutMs,
     },
   );
