@@ -30,7 +30,7 @@
     },
     "status": "failed",
     "error": "The contract function \"registerSettlement\" reverted.\n\nContract Call:\n  address:   0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0\n  function:  registerSettlement((bytes32 orderId, bytes32 poolId, address trader, int128 delta0, int128 delta1, uint64 submittedAt, bytes32 enclaveMeasurement), bytes signature)\n  args:                        ({\"orderId\":\"0x023cf26fc48a633d99bb33932aaa4ab635975a2d612bfcbf08dc26534fd57fa4\",\"poolId\":\"0x658e5d6f2e7fbc94953680ca040d50c5ddccadb5f0f05772399fffea45f88b28\",\"trader\":\"0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\",\"delta0\":\"-1000000000000000000000000000000000\",\"delta1\":\"2000000000000000000000000000000000000\",\"submittedAt\":\"1764401707\",\"enclaveMeasurement\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}, 0xed8d4fcb6bbca51726a43b78bf37408057730a02095962f9e8cda6517b2fb89b41e39950ae4facb59b67fa31ca88fe14a44ef2c0c44afa03540a0d9f3d182d5c1b)\n  sender:    0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\n\nDocs: https://viem.sh/docs/contract/writeContract\nVersion: viem@2.40.3",
-    "lastAttemptAt": 1764404202522
+    "lastAttemptAt": 1764406423687
   },
   {
     "clientOrderId": "1b5dfba9-f07a-48b4-bd1b-9cd8ff570e71",
@@ -63,7 +63,7 @@
     },
     "status": "failed",
     "error": "The contract function \"registerSettlement\" reverted.\n\nContract Call:\n  address:   0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0\n  function:  registerSettlement((bytes32 orderId, bytes32 poolId, address trader, int128 delta0, int128 delta1, uint64 submittedAt, bytes32 enclaveMeasurement), bytes signature)\n  args:                        ({\"orderId\":\"0x79151bbc3045db83f7b6d89c6d292dc73e552b21a3b7223942e42bde8c473fd8\",\"poolId\":\"0x658e5d6f2e7fbc94953680ca040d50c5ddccadb5f0f05772399fffea45f88b28\",\"trader\":\"0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\",\"delta0\":\"-1000000000000000000000000000000000\",\"delta1\":\"2000000000000000000000000000000000000\",\"submittedAt\":\"1764401753\",\"enclaveMeasurement\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}, 0xab549f9c6bc8321d936d6a627771a05fc2f5ed419d96134b5e89071e2e0e986507030596cfae4abd9d1bf2d0b3f855e08cb5d74aeca532171450abbf73d44f1e1c)\n  sender:    0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\n\nDocs: https://viem.sh/docs/contract/writeContract\nVersion: viem@2.40.3",
-    "lastAttemptAt": 1764404203626
+    "lastAttemptAt": 1764406424788
   },
   {
     "clientOrderId": "1cab8618-c25e-4618-884e-e9d45d212478",
@@ -96,6 +96,39 @@
     },
     "status": "failed",
     "error": "The contract function \"registerSettlement\" reverted.\n\nContract Call:\n  address:   0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0\n  function:  registerSettlement((bytes32 orderId, bytes32 poolId, address trader, int128 delta0, int128 delta1, uint64 submittedAt, bytes32 enclaveMeasurement), bytes signature)\n  args:                        ({\"orderId\":\"0xbc88acce90574431095574aa641cf16ebe08084498cba792dadcfc1c0cb2e784\",\"poolId\":\"0x658e5d6f2e7fbc94953680ca040d50c5ddccadb5f0f05772399fffea45f88b28\",\"trader\":\"0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\",\"delta0\":\"-1000000000000000000000000000000000\",\"delta1\":\"2000000000000000000000000000000000000\",\"submittedAt\":\"1764404191\",\"enclaveMeasurement\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}, 0x608f88205456f35fa49975657f34ba2faf113e043b6b60dd6d1eae548ddd85c776a0a3cddda7a3c695212177a252dc657b3b960500f8210242b113c0d0dcbcc21b)\n  sender:    0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\n\nDocs: https://viem.sh/docs/contract/writeContract\nVersion: viem@2.40.3",
-    "lastAttemptAt": 1764404194164
+    "lastAttemptAt": 1764406395673
+  },
+  {
+    "clientOrderId": "abbe361b-0ced-4e3f-907a-c56604d69b99",
+    "payload": {
+      "orderId": "abbe361b-0ced-4e3f-907a-c56604d69b99",
+      "settlement": {
+        "orderId": "0xaedb86052695a8c538ce6b47c462ea1c94390ec6c20470d7024f685e3f8156f5",
+        "poolId": "0x658e5d6f2e7fbc94953680ca040d50c5ddccadb5f0f05772399fffea45f88b28",
+        "trader": "0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd",
+        "delta0": "-1000000000000000000000000000000000",
+        "delta1": "2000000000000000000000000000000000000",
+        "submittedAt": 1764406423,
+        "enclaveMeasurement": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "attestation": {
+        "signature": "0x2ee06a3809a71aa4b69db0cc51625446de868986e888ad9ed1141787f028194c636de72a1f9ec87a5b268e11c1559fe2821e5efcf69fa90cba814efaaa483eca1b",
+        "digest": "0x2ee06a3809a71aa4b69db0cc51625446de868986e888ad9ed1141787f028194c636de72a1f9ec87a5b268e11c1559fe2821e5efcf69fa90cba814efaaa483eca1b",
+        "measurement": "0x0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    "verified": {
+      "clientOrderId": "abbe361b-0ced-4e3f-907a-c56604d69b99",
+      "settlementOrderId": "0xaedb86052695a8c538ce6b47c462ea1c94390ec6c20470d7024f685e3f8156f5",
+      "poolId": "0x658e5d6f2e7fbc94953680ca040d50c5ddccadb5f0f05772399fffea45f88b28",
+      "trader": "0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd",
+      "delta0": "-1000000000000000000000000000000000",
+      "delta1": "2000000000000000000000000000000000000",
+      "submittedAt": 1764406423,
+      "signer": "0x6894F22D78A71F57473877F0bb8A4431D380A460"
+    },
+    "status": "failed",
+    "error": "The contract function \"registerSettlement\" reverted.\n\nContract Call:\n  address:   0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0\n  function:  registerSettlement((bytes32 orderId, bytes32 poolId, address trader, int128 delta0, int128 delta1, uint64 submittedAt, bytes32 enclaveMeasurement), bytes signature)\n  args:                        ({\"orderId\":\"0xaedb86052695a8c538ce6b47c462ea1c94390ec6c20470d7024f685e3f8156f5\",\"poolId\":\"0x658e5d6f2e7fbc94953680ca040d50c5ddccadb5f0f05772399fffea45f88b28\",\"trader\":\"0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\",\"delta0\":\"-1000000000000000000000000000000000\",\"delta1\":\"2000000000000000000000000000000000000\",\"submittedAt\":\"1764406423\",\"enclaveMeasurement\":\"0x0000000000000000000000000000000000000000000000000000000000000000\"}, 0x2ee06a3809a71aa4b69db0cc51625446de868986e888ad9ed1141787f028194c636de72a1f9ec87a5b268e11c1559fe2821e5efcf69fa90cba814efaaa483eca1b)\n  sender:    0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd\n\nDocs: https://viem.sh/docs/contract/writeContract\nVersion: viem@2.40.3",
+    "lastAttemptAt": 1764406425996
   }
 ]
