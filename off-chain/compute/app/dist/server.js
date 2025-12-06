@@ -1,7 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import axios from "axios";
-import { keccak256, stringToHex, parseUnits } from "viem";
+import { keccak256, stringToHex, parseUnits, encodeAbiParameters } from "viem";
 import { config } from "./config.js";
 import { SettlementQueue } from "./settlementQueue.js";
 import { signSettlement } from "./attestation.js";
@@ -117,7 +117,23 @@ function getPriceIdForPair(tokenIn, tokenOut) {
     return config.pythPriceIds[pair] ?? null;
 }
 function buildSettlement(order, executionPrice, twapPrice, twapDeviationBps) {
-    const poolId = keccak256(stringToHex(`${order.tokenIn.toLowerCase()}-${order.tokenOut.toLowerCase()}`));
+    // Generate poolId using Uniswap V4 PoolKey structure
+    // PoolKey = (currency0, currency1, fee, tickSpacing, hooks)
+    // We use default Uniswap V4 values: fee=3000 (0.3%), tickSpacing=60
+    const currency0 = order.tokenIn.toLowerCase();
+    const currency1 = order.tokenOut.toLowerCase();
+    const fee = 3000; // 0.3% fee tier
+    const tickSpacing = 60; // Standard tick spacing for 0.3% fee
+    const hooks = config.hookAddress;
+    // Encode PoolKey as Solidity would: abi.encode(currency0, currency1, fee, tickSpacing, hooks)
+    const poolKeyEncoded = encodeAbiParameters([
+        { type: "address", name: "currency0" },
+        { type: "address", name: "currency1" },
+        { type: "uint24", name: "fee" },
+        { type: "int24", name: "tickSpacing" },
+        { type: "address", name: "hooks" },
+    ], [currency0, currency1, fee, tickSpacing, hooks]);
+    const poolId = keccak256(poolKeyEncoded);
     const orderHash = keccak256(stringToHex(order.orderId));
     const amountIn = parseUnits(order.amount, 18);
     // Calculate delta1 (amount out) with proper decimal handling

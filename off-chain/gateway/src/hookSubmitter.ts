@@ -1,4 +1,4 @@
-import { Hash, createWalletClient, defineChain, http } from "viem";
+import { Hash, Hex, createWalletClient, defineChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { config } from "./config.js";
 import { SettlementPayload, VerifiedSettlement } from "./types.js";
@@ -16,6 +16,10 @@ const hookAbi = [
           { name: "delta1", type: "int128" },
           { name: "submittedAt", type: "uint64" },
           { name: "enclaveMeasurement", type: "bytes32" },
+          { name: "metadataHash", type: "bytes32" },
+          { name: "sqrtPriceX96", type: "uint160" },
+          { name: "twapDeviationBps", type: "uint64" },
+          { name: "checkedLiquidity", type: "uint128" },
         ],
         name: "settlement",
         type: "tuple",
@@ -78,6 +82,11 @@ export async function submitToHook(
         delta1: BigInt(payload.settlement.delta1),
         submittedAt: BigInt(payload.settlement.submittedAt),
         enclaveMeasurement: payload.settlement.enclaveMeasurement,
+        metadataHash: (payload.settlement.metadataHash ??
+          ("0x" + "0".repeat(64))) as Hex,
+        sqrtPriceX96: BigInt(payload.settlement.sqrtPriceX96 ?? "0"),
+        twapDeviationBps: BigInt(payload.settlement.twapDeviationBps ?? 0),
+        checkedLiquidity: BigInt(payload.settlement.checkedLiquidity ?? "0"),
       },
       payload.attestation.signature,
     ],

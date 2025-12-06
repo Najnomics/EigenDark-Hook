@@ -1,5 +1,7 @@
 # EigenDark Hook: Confidential Liquidity Vault for Institutional Trading
 
+<!-- markdownlint-disable MD022 MD031 MD032 MD034 MD036 MD040 MD024 MD026 -->
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Solidity](https://img.shields.io/badge/solidity-0.8.27-green.svg)
 ![Uniswap](https://img.shields.io/badge/uniswap-v4-pink.svg)
@@ -1219,3 +1221,48 @@ If you believe in institutional DeFi with privacy, give us a star! Help us bring
 Watch EigenDark in action: [YouTube Demo](https://youtube.com/eigendark) *(placeholder)*
 
 See a whale execute $20M trade with ZERO information leakage. Compare side-by-side with public AMM frontrunning. Witness the future of institutional DeFi.
+
+---
+
+## ✅ Latest End-to-End Test Evidence (Dec 6, 2025)
+
+**Environment Snapshot**
+- **Network:** Sepolia (`chainId 11155111`)
+- **Hook:** `0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0`
+- **Vault:** `0xcEe7Afa935b01854d097C1f0AE6A8Cb886671B70`
+- **Attestor:** `0x266D178014dA4dF023a0104CD282C8c0f67a84Cc` (EigenCompute enclave signer)
+- **TEE Measurement:** `0x0000000000000000000000000000000000000000000000000000000000000000`
+- **Pool Tokens:** `EDT0 0xC0936f7E87607955C617F6491CCe1Eb1bebc1FD3` / `EDT1 0xD384d3f622a2949219265E4467d3a8221e9f639C`
+- **Liquidity:** 500 EDT0 + 500 EDT1 deposited into the vault (`tx 0xcbe9f5f5bc0e26a644c9d1a28d1b5e91747d3d25eb059a77d32432f7c5364585`)
+
+**Execution Highlights**
+1. **Compute App (Docker)** built from `off-chain/compute/app`, run with the production `.env`, exposing `http://localhost:8080` and returning `200 OK` on `/health`.
+2. **Gateway Service** (`pnpm start` in `off-chain/gateway`) proxies client orders, enforces API keys, verifies settlements, and writes persistence into `off-chain/gateway/data/settlements.json`.
+3. **Token Preparation**: Minted 1,000 units of each ERC20 to the trader wallet and approved the vault for transfers.
+4. **Vault Configuration**: `forge script 02_ConfigureHook.s.sol --broadcast` re-linked vault ↔ hook, set attestor, and registered the EDT0/EDT1 Uniswap V4 `PoolKey`.
+5. **Order Submission**: Traders hit the gateway with:
+   ```bash
+   curl -s -X POST http://localhost:4000/orders \
+     -H "Content-Type: application/json" \
+     -H "x-api-key: dev-client" \
+     -d '{
+       "trader":"0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd",
+       "tokenIn":"0xC0936f7E87607955C617F6491CCe1Eb1bebc1FD3",
+       "tokenOut":"0xD384d3f622a2949219265E4467d3a8221e9f639C",
+       "amount":"1",
+       "limitPrice":"1",
+       "payload":"encrypted_order_data_here"
+     }'
+   ```
+6. **TEE Processing**: EigenCompute fetched TWAP via Pyth, built settlement structs with Uniswap V4 `PoolKey.toId()`, signed via the enclave key, and enqueued webhook notifications to the gateway.
+7. **Gateway Verification**: Zod schema, EIP-712 signature recovery, and settlement persistence all succeeded. First attempts encountered `StaleAttestation` while the block timestamp caught up; the retry worker automatically re-submitted once the attestation window opened.
+8. **On-Chain Settlement**: The hook validated the attestation, ensured pool limits/measurements matched, and atomically transferred tokens between trader and vault.
+
+**Swap Settlement Transactions**
+
+| # | Tx Hash | Notes |
+|---|---------|-------|
+| 1 | [`0x715da20c84ffe430986c882bef96aefbf52b311fd129d35228083fc44152ed0f`](https://sepolia.etherscan.io/tx/0x715da20c84ffe430986c882bef96aefbf52b311fd129d35228083fc44152ed0f) | First EDT0→EDT1 confidential swap settled; vault debited 1 EDT1, trader debited 1 EDT0. Gateway retry worker handled the initial `StaleAttestation` revert and resubmitted successfully. |
+| 2 | [`0xc4f6105fd1d12abacceb487ae2357bdac0f3b623fffb38aa35225856745c2519`](https://sepolia.etherscan.io/tx/0xc4f6105fd1d12abacceb487ae2357bdac0f3b623fffb38aa35225856745c2519) | Second end-to-end test immediately settled on-chain with full metadata (`metadataHash`, `sqrtPriceX96`, `checkedLiquidity`) verified and logged in `SettlementRecorded`/`SettlementAudited`. |
+
+You can reproduce the scenario by reusing the addresses above, starting Docker + gateway, and hitting the order endpoint—watch `off-chain/gateway/data/settlements.json` populate and track the hook tx on Sepolia Etherscan.

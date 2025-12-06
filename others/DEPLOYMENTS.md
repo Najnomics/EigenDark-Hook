@@ -47,6 +47,20 @@ This document tracks all deployed contracts for the EigenDark Hook project on Se
   - `beforeAddLiquidity`: ✅ Enabled
   - `beforeRemoveLiquidity`: ✅ Enabled
 
+### Test ERC20 Tokens
+
+Used for Sepolia end-to-end settlement tests.
+
+| Token | Symbol | Address | Notes |
+|-------|--------|---------|-------|
+| EigenDark Token0 | `EDT0` | `0xC0936f7E87607955C617F6491CCe1Eb1bebc1FD3` | Mintable test asset deployed with `forge create`. Initial 1,000 EDT0 minted to deployer; 500 EDT0 deposited into `EigenDarkVault`. |
+| EigenDark Token1 | `EDT1` | `0xD384d3f622a2949219265E4467d3a8221e9f639C` | Mintable test asset deployed with `forge create`. Initial 1,000 EDT1 minted to deployer; 500 EDT1 deposited into `EigenDarkVault`. |
+
+**Liquidity Setup**
+
+- Approvals: both EDT0/EDT1 approve `0xcEe7Afa935b01854d097C1f0AE6A8Cb886671B70` (vault) for `1,000 * 10^18`.
+- Vault Deposit Tx: `0xcbe9f5f5bc0e26a644c9d1a28d1b5e91747d3d25eb059a77d32432f7c5364585` (500 EDT0 / 500 EDT1).
+
 ## External Dependencies
 
 ### Uniswap V4 Core Contracts

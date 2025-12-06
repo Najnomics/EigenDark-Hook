@@ -64,6 +64,10 @@ const settlementSchema = z.object({
     delta1: z.string(),
     submittedAt: z.number(),
     enclaveMeasurement: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
+    metadataHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/),
+    sqrtPriceX96: z.string().regex(/^\d+$/, "sqrtPriceX96 must be a base-10 string"),
+    twapDeviationBps: z.number().int().nonnegative(),
+    checkedLiquidity: z.string().regex(/^\d+$/, "checkedLiquidity must be a base-10 string"),
   }),
   attestation: z.object({
     signature: z.string(),

@@ -8,6 +8,10 @@ export type SettlementPayload = {
     delta1: string;
     submittedAt: number;
     enclaveMeasurement: `0x${string}`;
+    metadataHash?: `0x${string}`;
+    sqrtPriceX96?: string;
+    twapDeviationBps?: number;
+    checkedLiquidity?: string;
   };
   attestation: {
     signature: `0x${string}`;
