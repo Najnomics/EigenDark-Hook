@@ -1327,6 +1327,39 @@ See a whale execute $20M trade with ZERO information leakage. Compare side-by-si
 - **TEE Measurement:** `0x0000000000000000000000000000000000000000000000000000000000000000`
 - **Pool Tokens:** `EDT0 0xC0936f7E87607955C617F6491CCe1Eb1bebc1FD3` / `EDT1 0xD384d3f622a2949219265E4467d3a8221e9f639C`
 - **Liquidity:** 500 EDT0 + 500 EDT1 deposited into the vault (`tx 0xcbe9f5f5bc0e26a644c9d1a28d1b5e91747d3d25eb059a77d32432f7c5364585`)
+- **EigenX Compute App (deployed TEE):**
+  - App ID: `0xDb88d54e7594540290d339E2f3FcE2364b522cea`
+  - Public IP: `104.198.14.111`
+  - Enclave EVM Address (attestor): `0xDA6D5b0298B9C91a657Ab8fDf86454B8cD4ef3aA`
+  - Docker image: `najnomics/eigendark-compute:latest-eigenx`
+  - Hook attestor configuration tx: [`0x88179fdca176ce74338140073fa622f4ca457e792ffc0d648a8670de8b0a3fff`](https://sepolia.etherscan.io/tx/0x88179fdca176ce74338140073fa622f4ca457e792ffc0d648a8670de8b0a3fff)
+  - Current `ATTESTATION_MEASUREMENT`: placeholder (`0x00…00`); hook allows any measurement for testing. For production, fetch from `http://104.198.14.111/health` (or port `8080`) and update gateway/compute envs.
+  - Note: `GATEWAY_WEBHOOK_URL` must be a public URL (not `host.docker.internal`) for the deployed TEE to notify the gateway.
+
+### EigenX Compute Deployment Summary
+- **Status:** ✅ Running on Sepolia
+- **App Name / ID:** `eigendark-compute` / `0xDb88d54e7594540290d339E2f3FcE2364b522cea`
+- **Endpoint:** `http://104.198.14.111` (try `/health` or port `8080`)
+- **Enclave Attestor:** `0xDA6D5b0298B9C91a657Ab8fDf86454B8cD4ef3aA` (set on hook via `04_ConfigureEigenXAttestor.s.sol`)
+- **Image:** `najnomics/eigendark-compute:latest-eigenx` (digest `sha256:78cdd8…1470`)
+- **Measurement:** currently placeholder `0x00…00`; retrieve real value from the health endpoint and update both gateway/compute envs when ready.
+- **Gateway webhook:** must point to a public URL (not `host.docker.internal`) if you want the deployed TEE to call back your gateway.
+
+**Quick checks**
+```bash
+# Health (try both ports)
+curl http://104.198.14.111/health || curl http://104.198.14.111:8080/health
+
+# App info / logs
+export PATH="$HOME/bin:$PATH"
+eigenx app info 0xDb88d54e7594540290d339E2f3FcE2364b522cea
+eigenx app logs 0xDb88d54e7594540290d339E2f3FcE2364b522cea
+```
+
+**Gateway env updates (when using the deployed TEE)**
+- `EIGEN_COMPUTE_URL=http://104.198.14.111:8080`
+- `ATTESTATION_MEASUREMENT=<value from health endpoint>`
+- `GATEWAY_WEBHOOK_URL=<your public gateway URL>/settlements`
 
 **Execution Highlights**
 1. **Compute App (Docker)** built from `off-chain/compute/app`, run with the production `.env`, exposing `http://localhost:8080` and returning `200 OK` on `/health`.

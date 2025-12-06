@@ -144,6 +144,30 @@ POOL_MANAGER_ADDRESS=0x61b3f2011a92d183c7dbadbda940a7555ccf9227
 - **2024-12-XX**: Initial deployment of EigenDarkVault and EigenDarkHook to Sepolia testnet
 - **2024-12-XX**: Contracts verified on Etherscan
 
+## EigenX Compute App Deployment
+
+**Status**: ✅ Deployed and Running
+
+- **App ID**: `0xDb88d54e7594540290d339E2f3FcE2364b522cea`
+- **App Name**: `eigendark-compute`
+- **Public IP**: `104.198.14.111`
+- **Instance Type**: `g1-standard-4t` (4 vCPUs, 16 GB memory, TDX)
+- **Docker Image**: `najnomics/eigendark-compute:latest-eigenx`
+- **Enclave EVM Address**: `0xDA6D5b0298B9C91a657Ab8fDf86454B8cD4ef3aA`
+
+**✅ CONFIGURED**: The enclave EVM address has been configured as an attestor on the `EigenDarkHook`:
+- **Transaction**: `0x88179fdca176ce74338140073fa622f4ca457e792ffc0d648a8670de8b0a3fff`
+- **Etherscan**: https://sepolia.etherscan.io/tx/0x88179fdca176ce74338140073fa622f4ca457e792ffc0d648a8670de8b0a3fff
+- **Script**: `contracts/onchain/script/04_ConfigureEigenXAttestor.s.sol`
+
+To reconfigure (if needed):
+```bash
+EIGENX_ENCLAVE_ADDRESS=0xDA6D5b0298B9C91a657Ab8fDf86454B8cD4ef3aA \
+forge script script/04_ConfigureEigenXAttestor.s.sol --broadcast --rpc-url $RPC_URL
+```
+
+**Note**: The gateway's `GATEWAY_WEBHOOK_URL` should be updated to point to your gateway's public URL (not `host.docker.internal`) if you want the deployed compute app to notify your gateway.
+
 ## Notes
 
 - All contracts are deployed on Sepolia testnet
@@ -151,4 +175,5 @@ POOL_MANAGER_ADDRESS=0x61b3f2011a92d183c7dbadbda940a7555ccf9227
 - Owner address has full administrative control over both contracts
 - Hook is configured to block public swaps and liquidity operations
 - Vault must be linked to hook before settlements can be processed
+- EigenX compute app is deployed and running - configure the hook with the enclave address above
 
