@@ -1,17 +1,15 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request, RequestHandler } from "express";
 import { config } from "./config.js";
 
 function keyFromRequest(req: Request) {
-  return ((req.headers["x-api-key"] as string | undefined) ?? req.ip ?? "anon").toString();
+  const apiKey = req.headers["x-api-key"] as string | undefined;
+  return apiKey && apiKey.length > 0 ? apiKey : ipKeyGenerator(req.ip ?? "");
 }
 
 function adminKeyFromRequest(req: Request) {
-  return ((req.headers["x-admin-key"] as string | undefined) ??
-    (req.headers["x-api-key"] as string | undefined) ??
-    req.ip ??
-    "anon"
-  ).toString();
+  const adminKey = (req.headers["x-admin-key"] as string | undefined) ?? (req.headers["x-api-key"] as string | undefined);
+  return adminKey && adminKey.length > 0 ? adminKey : ipKeyGenerator(req.ip ?? "");
 }
 
 const baseOptions = {
