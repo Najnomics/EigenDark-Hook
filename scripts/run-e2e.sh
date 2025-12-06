@@ -27,6 +27,8 @@ set -a
 source "$ENV_FILE"
 set +a
 
+ETHERSCAN_BASE=${ETHERSCAN_BASE:-https://sepolia.etherscan.io}
+
 REQUIRED_VARS=(
   RPC_URL
   PRIVATE_KEY
@@ -134,11 +136,14 @@ deploy_token() {
     --private-key "$PRIVATE_KEY" \
     contracts/onchain/src/mocks/TestToken.sol:TestToken \
     --constructor-args "$name" "$symbol")
-  echo "$json" | jq -r '.deployedTo'
+  local addr tx
+  addr=$(echo "$json" | jq -r '.deployedTo')
+  tx=$(echo "$json" | jq -r '.transactionHash')
+  echo "${addr}|${tx}"
 }
 
-TOKEN0_ADDR=$(deploy_token "EigenDark Token0" "EDT0")
-TOKEN1_ADDR=$(deploy_token "EigenDark Token1" "EDT1")
+IFS="|" read -r TOKEN0_ADDR TOKEN0_TX < <(deploy_token "EigenDark Token0" "EDT0")
+IFS="|" read -r TOKEN1_ADDR TOKEN1_TX < <(deploy_token "EigenDark Token1" "EDT1")
 echo "Token0: ${TOKEN0_ADDR}"
 echo "Token1: ${TOKEN1_ADDR}"
 
@@ -155,13 +160,15 @@ cast send "$TOKEN0_ADDR" "approve(address,uint256)" "$EIGENDARK_VAULT" "$MAX_UIN
 cast send "$TOKEN1_ADDR" "approve(address,uint256)" "$EIGENDARK_VAULT" "$MAX_UINT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >/dev/null
 
 echo "Depositing liquidity into EigenDark vault..."
-cast send "$EIGENDARK_VAULT" \
+DEPOSIT_JSON=$(cast send "$EIGENDARK_VAULT" \
   "deposit((address,address,uint24,int24,address),uint256,uint256)" \
   "(${TOKEN0_ADDR},${TOKEN1_ADDR},3000,60,${EIGENDARK_HOOK})" \
   "$DEPOSIT_AMOUNT" \
   "$DEPOSIT_AMOUNT" \
+  --json \
   --rpc-url "$RPC_URL" \
-  --private-key "$PRIVATE_KEY" >/dev/null
+  --private-key "$PRIVATE_KEY")
+DEPOSIT_TX=$(echo "$DEPOSIT_JSON" | jq -r '.transactionHash')
 
 echo "Configuring hook & pool via forge script..."
 POOL_TOKEN0="$TOKEN0_ADDR" POOL_TOKEN1="$TOKEN1_ADDR" \
@@ -203,10 +210,36 @@ if [[ -z "$TX_HASH" ]]; then
   exit 1
 fi
 
-echo "EigenDark end-to-end run complete."
-echo "  Token0: ${TOKEN0_ADDR}"
-echo "  Token1: ${TOKEN1_ADDR}"
-echo "  Order ID: ${ORDER_ID}"
-echo "  Settlement tx: ${TX_HASH}"
+cat <<EOF
+
+========================================
+ EigenDark End-to-End Flow Report
+========================================
+
+Tokens:
+  • Token0 (${TOKEN0_ADDR})
+      View: ${ETHERSCAN_BASE}/address/${TOKEN0_ADDR}
+      Deploy tx: ${TOKEN0_TX}
+      Link: ${ETHERSCAN_BASE}/tx/${TOKEN0_TX}
+  • Token1 (${TOKEN1_ADDR})
+      View: ${ETHERSCAN_BASE}/address/${TOKEN1_ADDR}
+      Deploy tx: ${TOKEN1_TX}
+      Link: ${ETHERSCAN_BASE}/tx/${TOKEN1_TX}
+
+Liquidity:
+  • Deposit tx: ${DEPOSIT_TX}
+      Link: ${ETHERSCAN_BASE}/tx/${DEPOSIT_TX}
+
+Order & Settlement:
+  • Order ID: ${ORDER_ID}
+  • Settlement tx: ${TX_HASH}
+      Link: ${ETHERSCAN_BASE}/tx/${TX_HASH}
+
+Gateway health: http://127.0.0.1:${GATEWAY_PORT}/health
+Compute health: http://127.0.0.1:${COMPUTE_PORT}/health
+
+========================================
+
+EOF
 
 
