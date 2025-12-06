@@ -903,6 +903,99 @@ sdk.on('settlement', (orderId, details) => {
 
 ## 📊 Monitoring & Analytics
 
+### Gateway Operations Toolkit
+
+The gateway now exposes a small ops surface so you can monitor and throttle traffic during demos or production pilots.
+
+**Environment Flags**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ADMIN_API_KEY` | _unset_ | Required to query `/metrics` and `/admin/*`. If omitted, endpoints remain unauthenticated (dev only). |
+| `ORDER_RATE_WINDOW_MS` | `60000` | Sliding window for client order throttling. |
+| `ORDER_RATE_MAX` | `120` | Max orders per window per API key/IP. Set to `0` to disable. |
+| `ADMIN_RATE_WINDOW_MS` | `60000` | Sliding window for admin endpoints. |
+| `ADMIN_RATE_MAX` | `60` | Max admin requests per window. |
+
+**Admin endpoints (send `x-admin-key` or reuse `x-api-key` with the admin value)**
+
+- `GET /admin/stats` – uptime, pending settlements, submitter readiness, retry interval.
+- `GET /admin/settlements/pending?limit=25` – snapshot of queued/failed settlements (serialized from the persistence store).
+- `POST /admin/retry` – forces an immediate retry cycle (useful after fixing RPC issues).
+- `GET /metrics` – Prometheus exposition format powered by `prom-client` (`gateway_*` counters, histograms, gauges).
+
+Example:
+
+```bash
+curl -H "x-admin-key: $ADMIN_API_KEY" http://localhost:4000/metrics
+```
+
+## 🛠️ EigenDark CLI
+
+To make demos smoother we ship a TypeScript CLI that wraps the gateway/compute endpoints. It supports order submission, health checks, settlement lookups, admin stats, retries, and metrics streaming.
+
+```bash
+cd off-chain/cli
+pnpm install
+pnpm build
+pnpm start -- --help
+```
+
+Common commands:
+
+```bash
+# Check gateway + compute health (uses env defaults if available)
+pnpm start -- health
+
+# Submit encrypted order (payload from file)
+pnpm start -- orders submit \
+  --trader 0x4b992F2Fbf714C0fCBb23baC5130Ace48CaD00cd \
+  --token-in 0xC0936f7E87607955C617F6491CCe1Eb1bebc1FD3 \
+  --token-out 0xD384d3f622a2949219265E4467d3a8221e9f639C \
+  --amount 1 \
+  --limit-price 1 \
+  --payload-file ./samples/order.enc
+
+# Inspect settlement status
+pnpm start -- orders status <orderId>
+
+# Admin stats / pending queue / retry / metrics
+pnpm start -- gateway stats --admin-key $ADMIN_API_KEY
+pnpm start -- gateway pending --limit 10 --admin-key $ADMIN_API_KEY
+pnpm start -- gateway retry --admin-key $ADMIN_API_KEY
+pnpm start -- gateway metrics --admin-key $ADMIN_API_KEY
+```
+
+Environment variables (`GATEWAY_URL`, `COMPUTE_URL`, `CLIENT_API_KEY`, `ADMIN_API_KEY`, `EIGENDARK_PAYLOAD`) provide defaults so you rarely need to pass flags.
+
+### TypeScript SDK
+
+Integrators can depend on `@eigendark/sdk` for the same capabilities programmatically:
+
+```bash
+cd off-chain/sdk
+pnpm install
+pnpm build
+# Publish locally or consume via workspace dependency:
+pnpm add @eigendark/sdk --filter your-app
+```
+
+```ts
+import { EigenDarkClient } from "@eigendark/sdk";
+
+const client = new EigenDarkClient({
+  gatewayUrl: process.env.GATEWAY_URL!,
+  clientApiKey: process.env.CLIENT_API_KEY,
+  adminApiKey: process.env.ADMIN_API_KEY,
+});
+
+const health = await client.health();
+const order = await client.submitOrder({ /* trader/token info + payload */ });
+const pending = await client.listPending(10); // admin key required
+```
+
+Surface area: `health`, `submitOrder`, `getSettlement`, `adminStats`, `listPending`, `retrySettlements`, `metrics`.
+
 ### **Public Dashboard**
 
 **Pool-Level Metrics (Privacy-Preserving):**
