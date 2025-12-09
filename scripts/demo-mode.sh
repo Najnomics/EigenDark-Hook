@@ -17,6 +17,8 @@ GATEWAY_PORT=${GATEWAY_PORT:-4000}
 NGROK_LOG="${ROOT_DIR}/ngrok-gateway.log"
 NGROK_PID=""
 COMPUTE_ENV_BACKUP=""
+SKIP_LOCAL_COMPUTE=${SKIP_LOCAL_COMPUTE:-1} # default to using deployed compute
+REMOTE_COMPUTE_URL_DEFAULT="http://104.198.14.111:8080"
 
 ensure_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -47,9 +49,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$COMPUTE_ENV" ]]; then
-  echo "Missing compute env at ${COMPUTE_ENV}" >&2
-  exit 1
+if [[ "$SKIP_LOCAL_COMPUTE" -eq 0 ]]; then
+  if [[ ! -f "$COMPUTE_ENV" ]]; then
+    echo "Missing compute env at ${COMPUTE_ENV}" >&2
+    exit 1
+  fi
 fi
 
 echo "Launching ngrok tunnel for http://127.0.0.1:${GATEWAY_PORT} ..."
@@ -58,7 +62,7 @@ NGROK_PID=$!
 
 # Wait for ngrok API to expose the tunnel
 TUNNEL_URL=""
-for i in {1..15}; do
+for i in {1..30}; do
   sleep 1
   if TUNNEL_URL=$(curl -fsS http://127.0.0.1:4040/api/tunnels 2>/dev/null | jq -r '.tunnels[] | select(.proto == "https") | .public_url' | head -n1); then
     if [[ -n "$TUNNEL_URL" && "$TUNNEL_URL" != "null" ]]; then
@@ -74,18 +78,25 @@ fi
 
 echo "ngrok tunnel ready: ${TUNNEL_URL}"
 
-# Backup and patch compute env
-COMPUTE_ENV_BACKUP=$(mktemp)
-cp "$COMPUTE_ENV" "$COMPUTE_ENV_BACKUP"
+# If running local compute, patch its env; otherwise instruct user to update deployed compute webhook
+if [[ "$SKIP_LOCAL_COMPUTE" -eq 0 ]]; then
+  COMPUTE_ENV_BACKUP=$(mktemp)
+  cp "$COMPUTE_ENV" "$COMPUTE_ENV_BACKUP"
 
-if grep -q '^GATEWAY_WEBHOOK_URL=' "$COMPUTE_ENV"; then
-  perl -0pi -e "s|^GATEWAY_WEBHOOK_URL=.*$|GATEWAY_WEBHOOK_URL=${TUNNEL_URL}/settlements|m" "$COMPUTE_ENV"
+  if grep -q '^GATEWAY_WEBHOOK_URL=' "$COMPUTE_ENV"; then
+    perl -0pi -e "s|^GATEWAY_WEBHOOK_URL=.*$|GATEWAY_WEBHOOK_URL=${TUNNEL_URL}/settlements|m" "$COMPUTE_ENV"
+  else
+    echo "GATEWAY_WEBHOOK_URL=${TUNNEL_URL}/settlements" >>"$COMPUTE_ENV"
+  fi
+
+  echo "Patched local compute env GATEWAY_WEBHOOK_URL -> ${TUNNEL_URL}/settlements"
 else
-  echo "GATEWAY_WEBHOOK_URL=${TUNNEL_URL}/settlements" >>"$COMPUTE_ENV"
+  echo "Remote compute mode: update your deployed compute env GATEWAY_WEBHOOK_URL to ${TUNNEL_URL}/settlements"
 fi
 
-echo "Patched compute env GATEWAY_WEBHOOK_URL -> ${TUNNEL_URL}/settlements"
-
-# Run the existing full E2E script
+# Run the existing full E2E script (default to remote compute unless overridden)
+EIGEN_COMPUTE_URL=${EIGEN_COMPUTE_URL:-$REMOTE_COMPUTE_URL_DEFAULT}
+SKIP_LOCAL_COMPUTE=$SKIP_LOCAL_COMPUTE \
+EIGEN_COMPUTE_URL="$EIGEN_COMPUTE_URL" \
 "${ROOT_DIR}/scripts/run-e2e.sh"
 

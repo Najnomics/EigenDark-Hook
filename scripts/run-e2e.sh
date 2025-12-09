@@ -47,9 +47,22 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 COMPUTE_ENV_FILE="${ROOT_DIR}/off-chain/compute/app/.env"
-if [[ ! -f "$COMPUTE_ENV_FILE" ]]; then
-  echo "Missing compute env file at ${COMPUTE_ENV_FILE}" >&2
-  exit 1
+SKIP_LOCAL_COMPUTE=${SKIP_LOCAL_COMPUTE:-0}
+COMPUTE_PORT=${COMPUTE_PORT:-8080}
+GATEWAY_PORT=${GATEWAY_PORT:-4000}
+COMPUTE_URL=${EIGEN_COMPUTE_URL:-"http://127.0.0.1:${COMPUTE_PORT}"}
+
+if [[ "$SKIP_LOCAL_COMPUTE" -eq 0 ]]; then
+  if [[ ! -f "$COMPUTE_ENV_FILE" ]]; then
+    echo "Missing compute env file at ${COMPUTE_ENV_FILE}" >&2
+    exit 1
+  fi
+else
+  if [[ -z "${EIGEN_COMPUTE_URL:-}" ]]; then
+    echo "SKIP_LOCAL_COMPUTE=1 requires EIGEN_COMPUTE_URL to be set (deployed compute endpoint)" >&2
+    exit 1
+  fi
+  echo "Using deployed compute at ${EIGEN_COMPUTE_URL} (skipping local Docker compute)"
 fi
 
 ensure_cmd() {
@@ -99,53 +112,76 @@ cleanup() {
 
 trap cleanup EXIT
 
-COMPUTE_PORT=${COMPUTE_PORT:-8080}
-GATEWAY_PORT=${GATEWAY_PORT:-4000}
-
 kill_port "$COMPUTE_PORT"
 kill_port "$GATEWAY_PORT"
 
 docker rm -f eigendark-compute-local >/dev/null 2>&1 || true
 
-echo "Building EigenDark compute Docker image..."
-(cd "${ROOT_DIR}/off-chain/compute/app" && pnpm install --frozen-lockfile && pnpm build && docker build -t eigendark-compute-local .)
+if [[ "$SKIP_LOCAL_COMPUTE" -eq 0 ]]; then
+  echo "Building EigenDark compute Docker image..."
+  (cd "${ROOT_DIR}/off-chain/compute/app" && pnpm install --frozen-lockfile && pnpm build && docker build -t eigendark-compute-local .)
 
-echo "Starting EigenDark compute container..."
-docker run -d --name eigendark-compute-local \
-  --env-file "$COMPUTE_ENV_FILE" \
-  -p "${COMPUTE_PORT}:8080" \
-  eigendark-compute-local >/dev/null
+  echo "Starting EigenDark compute container..."
+  docker run -d --name eigendark-compute-local \
+    --env-file "$COMPUTE_ENV_FILE" \
+    -p "${COMPUTE_PORT}:8080" \
+    eigendark-compute-local >/dev/null
 
-wait_for_http "http://127.0.0.1:${COMPUTE_PORT}/health" "compute app"
+  wait_for_http "http://127.0.0.1:${COMPUTE_PORT}/health" "compute app"
+else
+  # Optional health check for deployed compute
+  if ! wait_for_http "${COMPUTE_URL}/health" "remote compute" 20 3; then
+    echo "Warning: remote compute at ${COMPUTE_URL} did not respond to /health; continuing anyway." >&2
+  fi
+fi
 
 echo "Building and launching gateway..."
-(cd "${ROOT_DIR}/off-chain/gateway" && pnpm install --frozen-lockfile && pnpm build && pnpm start > gateway.log 2>&1 &) 
+cd "${ROOT_DIR}/off-chain/gateway"
+pnpm install --frozen-lockfile && pnpm build && pnpm start > gateway.log 2>&1 &
 GATEWAY_PID=$!
+cd "${ROOT_DIR}"
 wait_for_http "http://127.0.0.1:${GATEWAY_PORT}/health" "gateway"
 
 DEPLOYER_ADDR=$(cast wallet address --private-key "$PRIVATE_KEY")
 echo "Deployer address: ${DEPLOYER_ADDR}"
 
-deploy_token() {
-  local name=$1
-  local symbol=$2
-  local json
-  json=$(forge create \
-    --json \
-    --rpc-url "$RPC_URL" \
-    --private-key "$PRIVATE_KEY" \
-    contracts/onchain/src/mocks/TestToken.sol:TestToken \
-    --constructor-args "$name" "$symbol")
-  local addr tx
-  addr=$(echo "$json" | jq -r '.deployedTo')
-  tx=$(echo "$json" | jq -r '.transactionHash')
-  echo "${addr}|${tx}"
-}
+# Token addresses: if provided via env, reuse; otherwise deploy fresh TestTokens.
+if [[ -n "${TOKEN0_ADDR:-}" && -n "${TOKEN1_ADDR:-}" ]]; then
+  echo "Using preconfigured tokens:"
+  echo "Token0: ${TOKEN0_ADDR}"
+  echo "Token1: ${TOKEN1_ADDR}"
+  TOKEN0_TX="(pre-existing)"
+  TOKEN1_TX="(pre-existing)"
+else
+  deploy_token() {
+    local name=$1
+    local symbol=$2
+    # Use project root (foundry.toml sets src=contracts/onchain/src); contract path relative to src.
+    local json
+    json=$(cd "${ROOT_DIR}" && forge create \
+      --broadcast \
+      --root "${ROOT_DIR}" \
+      --json \
+      --rpc-url "$RPC_URL" \
+      --private-key "$PRIVATE_KEY" \
+      contracts/onchain/src/mocks/TestToken.sol:TestToken \
+      --constructor-args "$name" "$symbol" 2>&1)
+    if echo "$json" | jq -e '.deployedTo' >/dev/null 2>&1; then
+      local addr tx
+      addr=$(echo "$json" | jq -r '.deployedTo')
+      tx=$(echo "$json" | jq -r '.transactionHash')
+      echo "${addr}|${tx}"
+    else
+      echo "Error deploying token: $json" >&2
+      exit 1
+    fi
+  }
 
-IFS="|" read -r TOKEN0_ADDR TOKEN0_TX < <(deploy_token "EigenDark Token0" "EDT0")
-IFS="|" read -r TOKEN1_ADDR TOKEN1_TX < <(deploy_token "EigenDark Token1" "EDT1")
-echo "Token0: ${TOKEN0_ADDR}"
-echo "Token1: ${TOKEN1_ADDR}"
+  IFS="|" read -r TOKEN0_ADDR TOKEN0_TX < <(deploy_token "EigenDark Token0" "EDT0")
+  IFS="|" read -r TOKEN1_ADDR TOKEN1_TX < <(deploy_token "EigenDark Token1" "EDT1")
+  echo "Token0: ${TOKEN0_ADDR}"
+  echo "Token1: ${TOKEN1_ADDR}"
+fi
 
 MINT_AMOUNT=$(cast --to-wei 1000 ether)
 DEPOSIT_AMOUNT=$(cast --to-wei 500 ether)
@@ -153,6 +189,19 @@ DEPOSIT_AMOUNT=$(cast --to-wei 500 ether)
 echo "Minting tokens to deployer..."
 cast send "$TOKEN0_ADDR" "mint(address,uint256)" "$DEPLOYER_ADDR" "$MINT_AMOUNT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >/dev/null
 cast send "$TOKEN1_ADDR" "mint(address,uint256)" "$DEPLOYER_ADDR" "$MINT_AMOUNT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >/dev/null
+
+# Configure hook/pool before deposits to avoid UNKNOWN_POOL
+echo "Configuring hook & pool via forge script..."
+CONFIG_LOG=$(POOL_TOKEN0="$TOKEN0_ADDR" POOL_TOKEN1="$TOKEN1_ADDR" \
+  forge script contracts/onchain/script/02_ConfigureHook.s.sol:ConfigureHookScript \
+  --rpc-url "$RPC_URL" \
+  --private-key "$PRIVATE_KEY" \
+  --broadcast 2>&1) || true
+if echo "$CONFIG_LOG" | grep -qi "POOL_EXISTS"; then
+  echo "Pool already configured; continuing."
+else
+  echo "$CONFIG_LOG"
+fi
 
 echo "Approving vault for both tokens..."
 MAX_UINT="0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
@@ -169,13 +218,6 @@ DEPOSIT_JSON=$(cast send "$EIGENDARK_VAULT" \
   --rpc-url "$RPC_URL" \
   --private-key "$PRIVATE_KEY")
 DEPOSIT_TX=$(echo "$DEPOSIT_JSON" | jq -r '.transactionHash')
-
-echo "Configuring hook & pool via forge script..."
-POOL_TOKEN0="$TOKEN0_ADDR" POOL_TOKEN1="$TOKEN1_ADDR" \
-  forge script contracts/onchain/script/02_ConfigureHook.s.sol:ConfigureHookScript \
-  --rpc-url "$RPC_URL" \
-  --private-key "$PRIVATE_KEY" \
-  --broadcast >/dev/null
 
 echo "Submitting confidential order via gateway..."
 ORDER_RESPONSE=$(curl -fsSL -X POST "http://127.0.0.1:${GATEWAY_PORT}/orders" \
@@ -236,7 +278,7 @@ Order & Settlement:
       Link: ${ETHERSCAN_BASE}/tx/${TX_HASH}
 
 Gateway health: http://127.0.0.1:${GATEWAY_PORT}/health
-Compute health: http://127.0.0.1:${COMPUTE_PORT}/health
+Compute health: ${COMPUTE_URL}/health
 
 ========================================
 
