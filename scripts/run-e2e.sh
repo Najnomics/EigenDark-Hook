@@ -145,43 +145,43 @@ wait_for_http "http://127.0.0.1:${GATEWAY_PORT}/health" "gateway"
 DEPLOYER_ADDR=$(cast wallet address --private-key "$PRIVATE_KEY")
 echo "Deployer address: ${DEPLOYER_ADDR}"
 
-# Token addresses: if provided via env, reuse; otherwise deploy fresh TestTokens.
-if [[ -n "${TOKEN0_ADDR:-}" && -n "${TOKEN1_ADDR:-}" ]]; then
-  echo "Using preconfigured tokens:"
-  echo "Token0: ${TOKEN0_ADDR}"
-  echo "Token1: ${TOKEN1_ADDR}"
-  TOKEN0_TX="(pre-existing)"
-  TOKEN1_TX="(pre-existing)"
-else
-  deploy_token() {
-    local name=$1
-    local symbol=$2
-    # Use project root (foundry.toml sets src=contracts/onchain/src); contract path relative to src.
-    local json
-    json=$(cd "${ROOT_DIR}" && forge create \
-      --broadcast \
-      --root "${ROOT_DIR}" \
-      --json \
-      --rpc-url "$RPC_URL" \
-      --private-key "$PRIVATE_KEY" \
-      contracts/onchain/src/mocks/TestToken.sol:TestToken \
-      --constructor-args "$name" "$symbol" 2>&1)
-    if echo "$json" | jq -e '.deployedTo' >/dev/null 2>&1; then
-      local addr tx
-      addr=$(echo "$json" | jq -r '.deployedTo')
-      tx=$(echo "$json" | jq -r '.transactionHash')
-      echo "${addr}|${tx}"
-    else
-      echo "Error deploying token: $json" >&2
-      exit 1
-    fi
-  }
+deploy_token() {
+  local name=$1
+  local symbol=$2
 
-  IFS="|" read -r TOKEN0_ADDR TOKEN0_TX < <(deploy_token "EigenDark Token0" "EDT0")
-  IFS="|" read -r TOKEN1_ADDR TOKEN1_TX < <(deploy_token "EigenDark Token1" "EDT1")
-  echo "Token0: ${TOKEN0_ADDR}"
-  echo "Token1: ${TOKEN1_ADDR}"
-fi
+  echo "Deploying $symbol..." >&2
+
+  # Deploy the contract and require a proper JSON output with deployedTo
+  local json
+  json=$(forge create \
+    --json \
+    --rpc-url "$RPC_URL" \
+    --private-key "$PRIVATE_KEY" \
+    contracts/onchain/src/mocks/TestToken.sol:TestToken \
+    --constructor-args "$name" "$symbol" \
+    --broadcast 2>/dev/null)
+
+  if ! echo "$json" | jq -e '.deployedTo' >/dev/null 2>&1; then
+    echo "ERROR: Token deployment failed for $symbol" >&2
+    echo "$json" >&2
+    exit 1
+  fi
+
+  local addr tx_hash
+  addr=$(echo "$json" | jq -r '.deployedTo')
+  tx_hash=$(echo "$json" | jq -r '.transactionHash // .transaction.hash // empty')
+
+  echo "Deployed $symbol at $addr (tx: ${tx_hash:-unknown})" >&2
+  echo "${addr}|${tx_hash}"
+}
+
+IFS="|" read -r TOKEN0_ADDR TOKEN0_TX < <(deploy_token "EigenDark Token0" "EDT0")
+echo "Token0: ${TOKEN0_ADDR}"
+
+# Wait a moment and then deploy token1 with the next nonce
+sleep 3
+IFS="|" read -r TOKEN1_ADDR TOKEN1_TX < <(deploy_token "EigenDark Token1" "EDT1")
+echo "Token1: ${TOKEN1_ADDR}"
 
 MINT_AMOUNT=$(cast --to-wei 1000 ether)
 DEPOSIT_AMOUNT=$(cast --to-wei 500 ether)
@@ -207,6 +207,16 @@ echo "Approving vault for both tokens..."
 MAX_UINT="0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
 cast send "$TOKEN0_ADDR" "approve(address,uint256)" "$EIGENDARK_VAULT" "$MAX_UINT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >/dev/null
 cast send "$TOKEN1_ADDR" "approve(address,uint256)" "$EIGENDARK_VAULT" "$MAX_UINT" --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" >/dev/null
+
+echo "Configuring hook & pool via forge script..."
+POOL_TOKEN0="$TOKEN0_ADDR" POOL_TOKEN1="$TOKEN1_ADDR" \
+  forge script contracts/onchain/script/02_ConfigureHook.s.sol:ConfigureHookScript \
+  --rpc-url "$RPC_URL" \
+  --private-key "$PRIVATE_KEY" \
+  --broadcast >/dev/null
+
+echo "Waiting for pool configuration to be mined..."
+sleep 5
 
 echo "Depositing liquidity into EigenDark vault..."
 DEPOSIT_JSON=$(cast send "$EIGENDARK_VAULT" \

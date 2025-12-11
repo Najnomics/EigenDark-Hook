@@ -9,8 +9,8 @@ importers:
   .:
     devDependencies:
       '@openzeppelin/contracts':
-        specifier: ^5.4.0
-        version: 5.4.0
+        specifier: ^5.5.0
+        version: 5.5.0
       '@openzeppelin/uniswap-hooks':
         specifier: github:OpenZeppelin/uniswap-hooks
         version: https://codeload.github.com/OpenZeppelin/uniswap-hooks/tar.gz/7170eec9cdbbdb4a907d14bfe63478cf15d2eab4
@@ -21,8 +21,8 @@ importers:
         specifier: ^1.0.3
         version: 1.0.3
       forge-std:
-        specifier: github:foundry-rs/forge-std
-        version: https://codeload.github.com/foundry-rs/forge-std/tar.gz/7117c90c8cf6c68e5acce4f09a6b24715cea4de6
+        specifier: ^1.1.2
+        version: 1.1.2
       hookmate:
         specifier: github:akshatmittal/hookmate
         version: '@hookmate/utils@https://codeload.github.com/akshatmittal/hookmate/tar.gz/33408fbc15e083eb0bc4205fa37cb6ba0a926f44'
@@ -36,8 +36,8 @@ packages:
     resolution: {tarball: https://codeload.github.com/akshatmittal/hookmate/tar.gz/33408fbc15e083eb0bc4205fa37cb6ba0a926f44}
     version: 0.1.0
 
-  '@openzeppelin/contracts@5.4.0':
-    resolution: {integrity: sha512-eCYgWnLg6WO+X52I16TZt8uEjbtdkgLC0SUX/xnAksjjrQI4Xfn4iBRoI5j55dmlOhDv1Y7BoR3cU7e3WWhC6A==}
+  '@openzeppelin/contracts@5.5.0':
+    resolution: {integrity: sha512-R8hq4zmKKWP2c7OxeRgAcjZwvF5W0Qq2OIX7degrtdM52Q9xYr4MLJdUAVPKGUewNJ1qo+M6YiZLLnNUnjP/gg==}
 
   '@openzeppelin/uniswap-hooks@https://codeload.github.com/OpenZeppelin/uniswap-hooks/tar.gz/7170eec9cdbbdb4a907d14bfe63478cf15d2eab4':
     resolution: {tarball: https://codeload.github.com/OpenZeppelin/uniswap-hooks/tar.gz/7170eec9cdbbdb4a907d14bfe63478cf15d2eab4}
@@ -49,9 +49,8 @@ packages:
   '@uniswap/v4-periphery@1.0.3':
     resolution: {integrity: sha512-JxLL0Djv9XcMvI2PatEnWrCrxuEaYNVhHxstndBOP+aJfh1XLg5ec8SDZ0xyoVfg2ElJTvuKpBgnu90bNValsg==}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/7117c90c8cf6c68e5acce4f09a6b24715cea4de6:
-    resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/7117c90c8cf6c68e5acce4f09a6b24715cea4de6}
-    version: 1.12.0
+  forge-std@1.1.2:
+    resolution: {integrity: sha512-Wfb0iAS9PcfjMKtGpWQw9mXzJxrWD62kJCUqqLcyuI0+VRtJ3j20XembjF3kS20qELYdXft1vD/SPFVWVKMFOw==}
 
   prettier@3.6.2:
     resolution: {integrity: sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==}
@@ -62,7 +61,7 @@ snapshots:
 
   '@hookmate/utils@https://codeload.github.com/akshatmittal/hookmate/tar.gz/33408fbc15e083eb0bc4205fa37cb6ba0a926f44': {}
 
-  '@openzeppelin/contracts@5.4.0': {}
+  '@openzeppelin/contracts@5.5.0': {}
 
   '@openzeppelin/uniswap-hooks@https://codeload.github.com/OpenZeppelin/uniswap-hooks/tar.gz/7170eec9cdbbdb4a907d14bfe63478cf15d2eab4': {}
 
@@ -70,6 +69,6 @@ snapshots:
 
   '@uniswap/v4-periphery@1.0.3': {}
 
-  forge-std@https://codeload.github.com/foundry-rs/forge-std/tar.gz/7117c90c8cf6c68e5acce4f09a6b24715cea4de6: {}
+  forge-std@1.1.2: {}
 
   prettier@3.6.2: {}
