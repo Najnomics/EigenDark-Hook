@@ -79,7 +79,7 @@ EigenDark Hook solves the institutional trading privacy problem by:
    - Only encrypted hashes visible on-chain
 
 2. **Private Order Execution**
-   - Orders encrypted with TEE public key
+- Orders encrypted with TEE public key
    - Size, direction, and limit price hidden until settlement
    - Execution happens invisibly inside secure enclaves
    - TWAP-based pricing via Pyth oracles
@@ -415,6 +415,64 @@ flowchart LR
     style SIGN fill:#10b981
     style SETTLEMENT fill:#3b82f6
 ```
+
+---
+
+## ☁️ EigenX Compute Deployment
+
+<div align="center">
+
+### 🚀 **Production TEE Infrastructure Live on EigenX**
+
+![EigenX](https://img.shields.io/badge/EigenX-Deployed-success?style=for-the-badge&logo=eigenlayer)
+![Status](https://img.shields.io/badge/Status-Live-brightgreen?style=for-the-badge)
+![TEE](https://img.shields.io/badge/TEE-TDX-purple?style=for-the-badge)
+
+</div>
+
+**EigenDark Hook's compute app is deployed and running on EigenX's trusted execution environment (TEE) infrastructure.**
+
+### 📋 Deployment Details
+
+| Property | Value |
+|----------|-------|
+| **App ID** | `0xDb88d54e7594540290d339E2f3FcE2364b522cea` |
+| **App Name** | `eigendark-compute` |
+| **Public IP** | `34.105.110.123` |
+| **Instance Type** | `g1-standard-4t` (4 vCPUs, 16 GB memory, TDX) |
+| **Docker Image** | `najnomics/eigendark-compute:latest-eigenx` |
+| **Enclave EVM Address** | `0xDA6D5b0298B9C91a657Ab8fDf86454B8cD4ef3aA` |
+| **Network** | Sepolia Testnet |
+| **Status** | ✅ **Deployed and Running** |
+
+### ✅ Configuration Status
+
+**Attestor Configuration:**
+- ✅ Enclave EVM address configured as attestor on `EigenDarkHook`
+- **Transaction**: [`0x88179fdca176ce74338140073fa622f4ca457e792ffc0d648a8670de8b0a3fff`](https://sepolia.etherscan.io/tx/0x88179fdca176ce74338140073fa622f4ca457e792ffc0d648a8670de8b0a3fff)
+- **Hook Address**: [`0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0`](https://sepolia.etherscan.io/address/0x12982838e8cd12e8d8d4dee9A4DE6Ac8B7164AC0)
+
+### 🔗 Quick Links
+
+- **Gateway URL**: `https://eigendark-hook-production.up.railway.app`
+- **Compute Endpoint**: `http://34.105.110.123:8080`
+- **Health Check**: `http://34.105.110.123:8080/health`
+
+### 📝 Management Commands
+
+```bash
+# View app information
+export PATH="$HOME/bin:$PATH"
+eigenx app info 0xDb88d54e7594540290d339E2f3FcE2364b522cea
+
+# View logs
+eigenx app logs 0xDb88d54e7594540290d339E2f3FcE2364b522cea
+
+# List all apps
+eigenx app list
+```
+
+**For full deployment details, see**: [`others/DEPLOYMENTS.md`](./others/DEPLOYMENTS.md)
 
 ---
 

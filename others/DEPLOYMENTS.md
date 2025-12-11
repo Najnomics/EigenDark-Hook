@@ -150,7 +150,7 @@ POOL_MANAGER_ADDRESS=0x61b3f2011a92d183c7dbadbda940a7555ccf9227
 
 - **App ID**: `0xDb88d54e7594540290d339E2f3FcE2364b522cea`
 - **App Name**: `eigendark-compute`
-- **Public IP**: `104.198.14.111`
+- **Public IP**: `34.105.110.123`
 - **Instance Type**: `g1-standard-4t` (4 vCPUs, 16 GB memory, TDX)
 - **Docker Image**: `najnomics/eigendark-compute:latest-eigenx`
 - **Enclave EVM Address**: `0xDA6D5b0298B9C91a657Ab8fDf86454B8cD4ef3aA`
